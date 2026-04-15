@@ -1,0 +1,465 @@
+{
+	"partitions" : [
+		{
+			"name" : "Top",
+			"pins" : [
+				{
+					"name" : "done",
+					"strict" : false
+				},
+				{
+					"name" : "pred[0]",
+					"strict" : false
+				},
+				{
+					"name" : "pred[1]",
+					"strict" : false
+				},
+				{
+					"name" : "pred[2]",
+					"strict" : false
+				},
+				{
+					"name" : "pred[3]",
+					"strict" : false
+				},
+				{
+					"name" : "clk",
+					"strict" : false
+				},
+				{
+					"name" : "rst_n",
+					"strict" : false
+				},
+				{
+					"name" : "start",
+					"strict" : false
+				},
+				{
+					"name" : "img_we",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[0]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[0]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[1]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[2]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[3]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[4]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[5]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[6]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[7]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[8]",
+					"strict" : false
+				},
+				{
+					"name" : "img_waddr[9]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_we",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[16]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[13]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[14]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[15]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[0]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[0]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[1]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[2]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[3]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[4]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[5]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[6]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[7]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[8]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[9]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[10]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[11]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_waddr[12]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_we",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[0]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[0]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[1]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[2]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[3]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[4]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[5]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[6]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[7]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[8]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[9]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_waddr[10]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_we",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[0]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_waddr[0]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_waddr[1]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_waddr[2]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_waddr[3]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_waddr[4]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_waddr[5]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_waddr[6]",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[1]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[1]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[1]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[1]",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[2]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[2]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[2]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[2]",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[3]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[3]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[3]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[3]",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[4]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[4]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[4]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[4]",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[5]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[5]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[5]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[5]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[15]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[14]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[13]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[12]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[11]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[10]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[9]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[8]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[7]",
+					"strict" : false
+				},
+				{
+					"name" : "bias_wdata[6]",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[6]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[6]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[6]",
+					"strict" : false
+				},
+				{
+					"name" : "img_wdata[7]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[7]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[7]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[8]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[8]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[9]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[9]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[10]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[10]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[11]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[11]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[12]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[12]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[13]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[13]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[14]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[14]",
+					"strict" : false
+				},
+				{
+					"name" : "pesos_wdata[15]",
+					"strict" : false
+				},
+				{
+					"name" : "beta_wdata[15]",
+					"strict" : false
+				},
+				{
+					"name" : "ativacao",
+					"strict" : false
+				}
+			]
+		}
+	]
+}

@@ -1,0 +1,143 @@
+Flow report for co-processador
+Wed Apr 15 12:33:52 2026
+Quartus Prime Version 24.1std.0 Build 1077 03/04/2025 SC Lite Edition
+
+
+---------------------
+; Table of Contents ;
+---------------------
+  1. Legal Notice
+  2. Flow Summary
+  3. Flow Settings
+  4. Flow Non-Default Global Settings
+  5. Flow Elapsed Time
+  6. Flow OS Summary
+  7. Flow Log
+  8. Flow Messages
+  9. Flow Suppressed Messages
+
+
+
+----------------
+; Legal Notice ;
+----------------
+Copyright (C) 2025  Altera Corporation. All rights reserved.
+Your use of Altera Corporation's design tools, logic functions 
+and other software and tools, and any partner logic 
+functions, and any output files from any of the foregoing 
+(including device programming or simulation files), and any 
+associated documentation or information are expressly subject 
+to the terms and conditions of the Altera Program License 
+Subscription Agreement, the Altera Quartus Prime License Agreement,
+the Altera IP License Agreement, or other applicable license
+agreement, including, without limitation, that your use is for
+the sole purpose of programming logic devices manufactured by
+Altera and sold by Altera or its authorized distributors.  Please
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
+
+
+
++-----------------------------------------------------------------------------------+
+; Flow Summary                                                                      ;
++---------------------------------+-------------------------------------------------+
+; Flow Status                     ; Successful - Wed Apr 15 12:33:52 2026           ;
+; Quartus Prime Version           ; 24.1std.0 Build 1077 03/04/2025 SC Lite Edition ;
+; Revision Name                   ; co-processador                                  ;
+; Top-level Entity Name           ; fsm                                             ;
+; Family                          ; Cyclone V                                       ;
+; Device                          ; 5CSEMA5F31C6                                    ;
+; Timing Models                   ; Final                                           ;
+; Logic utilization (in ALMs)     ; 2,003 / 32,070 ( 6 % )                          ;
+; Total registers                 ; 2554                                            ;
+; Total pins                      ; 147 / 457 ( 32 % )                              ;
+; Total virtual pins              ; 0                                               ;
+; Total block memory bits         ; 1,634,432 / 4,065,280 ( 40 % )                  ;
+; Total DSP Blocks                ; 1 / 87 ( 1 % )                                  ;
+; Total HSSI RX PCSs              ; 0                                               ;
+; Total HSSI PMA RX Deserializers ; 0                                               ;
+; Total HSSI TX PCSs              ; 0                                               ;
+; Total HSSI PMA TX Serializers   ; 0                                               ;
+; Total PLLs                      ; 0 / 6 ( 0 % )                                   ;
+; Total DLLs                      ; 0 / 4 ( 0 % )                                   ;
++---------------------------------+-------------------------------------------------+
+
+
++-----------------------------------------+
+; Flow Settings                           ;
++-------------------+---------------------+
+; Option            ; Setting             ;
++-------------------+---------------------+
+; Start date & time ; 04/15/2026 12:32:25 ;
+; Main task         ; Compilation         ;
+; Revision Name     ; co-processador      ;
++-------------------+---------------------+
+
+
++-------------------------------------------------------------------------------------------------------------------------------------------------+
+; Flow Non-Default Global Settings                                                                                                                ;
++-------------------------------------+----------------------------------------+----------------+-------------+-----------------------------------+
+; Assignment Name                     ; Value                                  ; Default Value  ; Entity Name ; Section Id                        ;
++-------------------------------------+----------------------------------------+----------------+-------------+-----------------------------------+
+; COMPILER_SIGNATURE_ID               ; 44830101952137.177626714525579         ; --             ; --          ; --                                ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST     ; Off                                    ; --             ; --          ; eda_board_design_timing           ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST     ; Off                                    ; --             ; --          ; eda_board_design_boundary_scan    ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST     ; Off                                    ; --             ; --          ; eda_board_design_signal_integrity ;
+; EDA_GENERATE_FUNCTIONAL_NETLIST     ; Off                                    ; --             ; --          ; eda_board_design_symbol           ;
+; EDA_OUTPUT_DATA_FORMAT              ; Verilog Hdl                            ; --             ; --          ; eda_simulation                    ;
+; EDA_SIMULATION_TOOL                 ; Questa Intel FPGA (Verilog)            ; <None>         ; --          ; --                                ;
+; EDA_TIME_SCALE                      ; 1 ps                                   ; --             ; --          ; eda_simulation                    ;
+; MAX_CORE_JUNCTION_TEMP              ; 85                                     ; --             ; --          ; --                                ;
+; MIN_CORE_JUNCTION_TEMP              ; 0                                      ; --             ; --          ; --                                ;
+; MISC_FILE                           ; memory/imagem_bb.v                     ; --             ; --          ; --                                ;
+; MISC_FILE                           ; memory/beta_bb.v                       ; --             ; --          ; --                                ;
+; MISC_FILE                           ; memory/bias_bb.v                       ; --             ; --          ; --                                ;
+; MISC_FILE                           ; memory/peso_bb.v                       ; --             ; --          ; --                                ;
+; PARTITION_COLOR                     ; -- (Not supported for targeted family) ; --             ; fsm         ; Top                               ;
+; PARTITION_FITTER_PRESERVATION_LEVEL ; -- (Not supported for targeted family) ; --             ; fsm         ; Top                               ;
+; PARTITION_NETLIST_TYPE              ; -- (Not supported for targeted family) ; --             ; fsm         ; Top                               ;
+; POWER_BOARD_THERMAL_MODEL           ; None (CONSERVATIVE)                    ; --             ; --          ; --                                ;
+; POWER_PRESET_COOLING_SOLUTION       ; 23 MM HEAT SINK WITH 200 LFPM AIRFLOW  ; --             ; --          ; --                                ;
+; PROJECT_OUTPUT_DIRECTORY            ; output_files                           ; --             ; --          ; --                                ;
+; TOP_LEVEL_ENTITY                    ; fsm                                    ; co-processador ; --          ; --                                ;
++-------------------------------------+----------------------------------------+----------------+-------------+-----------------------------------+
+
+
++--------------------------------------------------------------------------------------------------------------------------+
+; Flow Elapsed Time                                                                                                        ;
++----------------------+--------------+-------------------------+---------------------+------------------------------------+
+; Module Name          ; Elapsed Time ; Average Processors Used ; Peak Virtual Memory ; Total CPU Time (on all processors) ;
++----------------------+--------------+-------------------------+---------------------+------------------------------------+
+; Analysis & Synthesis ; 00:00:15     ; 1.0                     ; 624 MB              ; 00:00:34                           ;
+; Fitter               ; 00:00:52     ; 1.5                     ; 2382 MB             ; 00:03:22                           ;
+; Assembler            ; 00:00:05     ; 1.0                     ; 577 MB              ; 00:00:05                           ;
+; Timing Analyzer      ; 00:00:07     ; 3.7                     ; 1041 MB             ; 00:00:24                           ;
+; EDA Netlist Writer   ; 00:00:02     ; 1.0                     ; 729 MB              ; 00:00:02                           ;
+; Total                ; 00:01:21     ; --                      ; --                  ; 00:04:27                           ;
++----------------------+--------------+-------------------------+---------------------+------------------------------------+
+
+
++---------------------------------------------------------------------------------+
+; Flow OS Summary                                                                 ;
++----------------------+------------------+---------+------------+----------------+
+; Module Name          ; Machine Hostname ; OS Name ; OS Version ; Processor type ;
++----------------------+------------------+---------+------------+----------------+
+; Analysis & Synthesis ; duda             ; Ubuntu  ; 24         ; x86_64         ;
+; Fitter               ; duda             ; Ubuntu  ; 24         ; x86_64         ;
+; Assembler            ; duda             ; Ubuntu  ; 24         ; x86_64         ;
+; Timing Analyzer      ; duda             ; Ubuntu  ; 24         ; x86_64         ;
+; EDA Netlist Writer   ; duda             ; Ubuntu  ; 24         ; x86_64         ;
++----------------------+------------------+---------+------------+----------------+
+
+
+------------
+; Flow Log ;
+------------
+quartus_map --read_settings_files=on --write_settings_files=off co-processador -c co-processador
+quartus_fit --read_settings_files=off --write_settings_files=off co-processador -c co-processador
+quartus_asm --read_settings_files=off --write_settings_files=off co-processador -c co-processador
+quartus_sta co-processador -c co-processador
+quartus_eda --read_settings_files=off --write_settings_files=off co-processador -c co-processador
+
+
+

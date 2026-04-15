@@ -1,0 +1,17 @@
+Analysis & Synthesis Status : Successful - Wed Apr 15 12:32:42 2026
+Quartus Prime Version : 24.1std.0 Build 1077 03/04/2025 SC Lite Edition
+Revision Name : co-processador
+Top-level Entity Name : fsm
+Family : Cyclone V
+Logic utilization (in ALMs) : N/A
+Total registers : 2536
+Total pins : 147
+Total virtual pins : 0
+Total block memory bits : 1,634,432
+Total DSP Blocks : 1
+Total HSSI RX PCSs : 0
+Total HSSI PMA RX Deserializers : 0
+Total HSSI TX PCSs : 0
+Total HSSI PMA TX Serializers : 0
+Total PLLs : 0
+Total DLLs : 0
