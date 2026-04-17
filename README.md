@@ -3,25 +3,25 @@
 > **TEC 499 — MI Sistemas Digitais 2026.1 | UEFS**  
 
 ## Sumário
-- [Visão Geral do Projeto](#1-visão-geral-do-projeto)
-- [Levantamento de Requisitos](#2-levantamento-de-requisitos)
-- [Fundamentação Teórica](#3-fundamentação-teórica)  
-- [Arquitetura do Sistema](#3-arquitetura-do-sistema)
-- [Especificação de Hardware e Software](#4-especificação-de-hardware-e-software)
-- [Processo de Desenvolvimento](#12-processo-de-desenvolvimento)
-- [Instalação e Configuração](#5-instalação-e-configuração)
-- [Simulação e Testes](#6-simulação-e-testes)
-- [Resultados e Uso de Recursos](#7-resultados-e-uso-de-recursos)
-- [Equipe de Desenvolvimento](#9-e-quipe-de-desenvolvimento)
-- [Referências](#17-referências)
+01. [Visão Geral do Projeto](#1-visão-geral-do-projeto)
+02. [Levantamento de Requisitos](#2-levantamento-de-requisitos)
+03. [Fundamentação Teórica](#3-fundamentação-teórica)  
+04. [Arquitetura do Sistema](#3-arquitetura-do-sistema)
+05. [Especificação de Hardware e Software](#4-especificação-de-hardware-e-software)
+05. [Processo de Desenvolvimento](#12-processo-de-desenvolvimento)
+06. [Instalação e Configuração](#5-instalação-e-configuração)
+07. [Simulação e Testes](#6-simulação-e-testes)
+08. [Resultados e Uso de Recursos](#7-resultados-e-uso-de-recursos)
+09. [Equipe de Desenvolvimento](#9-e-quipe-de-desenvolvimento)
+10. [Referências](#17-referências)
 
 
-## Visão Geral do Projeto
+## 1. Visão Geral do Projeto
 
 O sistema desenvolvido consiste em uma solução de aceleração por hardware para a classificação de dígitos manuscritos, baseada na implementação de um co-processador em FPGA capaz de executar a inferência de uma rede neural do tipo Extreme Learning Machine (ELM). Esse problema envolve o processamento de imagens do conjunto MNIST, compostas por 784 pixels em escala de cinza, exigindo a realização de operações matemáticas intensivas como multiplicações e acumulações. Em abordagens tradicionais em software, essas operações podem introduzir alta latência e limitar o desempenho em sistemas embarcados. Dessa forma, a utilização de hardware dedicado permite explorar maior eficiência computacional.
 
 
-## Levantamento de Requisitos
+## 2. Levantamento de Requisitos
 
 - Implementar inferência da rede ELM utilizando pesos fornecidos previamente.
 - A arquitetura deve ser sequencial.
@@ -38,23 +38,23 @@ O sistema desenvolvido consiste em uma solução de aceleração por hardware pa
  - Deve haver uma estratégia clara para armazenamento e acesso a W_in, b e β
 
 
-## 2. Fundamentação Teórica
+## 3. Fundamentação Teórica
 
 São apresentados os conceitos teóricos e arquiteturais que fundamentam o desenvolvimento do classificador de dígitos proposto, incluindo  o modelo de rede neural utilizado, a estratégia de aceleração em hardware e os mecanismos de comunicação do sistema embarcado.
 
 
-## 2.1 Redes Neurais e o Modelo Extreme Learning Machine (ELM)
+### 3.1 Redes Neurais e o Modelo Extreme Learning Machine (ELM)
 
 O núcleo inteligente do sistema baseia-se na Extreme Learning Machine (ELM), uma arquitetura de rede neural do tipo Single-Hidden Layer Feedforward Neural Network (SLFN). Diferentemente dos modelos tradicionais treinados por backpropagation (como o Gradiente Descendente), a ELM possui a característica de ter os pesos da camada oculta atribuídos aleatoriamente e mantidos fixos, enquanto apenas os pesos da camada de saída são calculados analiticamente.
 
 Para o escopo deste projeto, a fase de treinamento é abstraída, sendo o sistema embarcado responsável exclusivamente pela fase de inferência (classificação), utilizando os parâmetros W_in, b e β previamente fornecidos.
 
-### 2.1.1 Camada de Entrada
+### 3.1.1 Camada de Entrada
 ---
 
 A camada de entrada recebe um vetor x correspondente à imagem de entrada no formato 28×28 pixels em escala de cinza, totalizando 784 valores. Cada pixel é convertido para um vetor unidimensional. Nesta etapa não há processamento matemático complexo, apenas a preparação dos dados para a rede neural.
 
-### 2.1.2 Camada Oculta
+### 3.1.2 Camada Oculta
 ---
 
 A camada oculta é responsável pela extração de características não lineares a partir da entrada. O processamento ocorre por meio de uma combinação linear entre entrada e pesos W_in, somada ao viés b, seguida de uma função de ativação não linear:
@@ -66,7 +66,7 @@ h = activation(W_in · x + b)
 Nesta etapa são realizadas operações intensivas de multiplicação e acumulação (MAC), sendo o principal ponto de aceleração em hardware no co-processador.
 
 
-### 2.1.3 Camada de Saída
+### 3.1.3 Camada de Saída
 ---
 
 A camada de saída possui 10 neurônios, correspondentes às classes de 0 a 9. O vetor de saída y é calculado por:
@@ -78,7 +78,7 @@ A camada de saída possui 10 neurônios, correspondentes às classes de 0 a 9. O
 Cada elemento do vetor representa a ativação associada a uma classe específica.
 
 
-### 2.1.4 Cômputo da Predição
+### 3.1.4 Cômputo da Predição
 ---
 
 A classificação final é obtida através da operação argmax:
@@ -90,14 +90,14 @@ pred = argmax(y)
 O índice retornado corresponde ao dígito predito pelo sistema.
 
 
-## 2.2 Visão Geral do Fluxo de Inferência
+## 3.2 Visão Geral do Fluxo de Inferência
 
 O fluxo completo do sistema ELM, desde a entrada da imagem até a decisão final da classe, é apresentado na figura 1.
 
 ![Figura 1 – Diagrama geral da inferência na ELM](Assets/figuras/diagrama_geral.png)
 **Figura 1 – Diagrama geral da inferência na ELM**
 
-## 2.3 Aritmética de Ponto Fixo (Q4.12)
+## 3.3 Aritmética de Ponto Fixo (Q4.12)
 
 Em arquiteturas FPGA, o uso de ponto flutuante é custoso em termos de área e desempenho. Por isso, o sistema utiliza representação em ponto fixo no formato Q4.12.
 
@@ -110,7 +110,7 @@ O formato Q4.12 é definido como:
 Essa representação permite que operações de soma e multiplicação sejam realizadas com lógica inteira, reduzindo o uso de recursos da FPGA e aumentando a eficiência do datapath.
 
 
-## 2.4 Organização e Uso de Memória no Co-processador
+## 3.4 Organização e Uso de Memória no Co-processador
 
 A eficiência de arquiteturas baseadas em redes neurais em hardware depende diretamente da forma como os dados são armazenados e acessados. No caso da Extreme Learning Machine (ELM), uma parcela significativa do custo computacional está associada não apenas às operações aritméticas, mas também ao volume de acessos à memória necessários para leitura dos vetores de entrada e dos parâmetros do modelo.
 
@@ -124,12 +124,12 @@ Além disso, o sistema utiliza registradores de controle para armazenar estados 
 
 Essa organização baseada em RAM interna reduz gargalos de acesso à memória externa e permite que o processamento seja realizado de forma sequencial e determinística, garantindo maior eficiência no uso dos recursos da FPGA e melhor integração com o datapath do co-processador.
 
-## 3. Arquitetura do Sistema (Descrição da Solução em Hardware)
+## 4. Arquitetura do Sistema (Descrição da Solução em Hardware)
 
 A arquitetura do co-processador ELM foi desenvolvida de forma modular, separando as funções de controle, armazenamento de dados, via de dados (*datapath*) e interface com o utilizador. Essa divisão permite maior escalabilidade e organização do fluxo de execução da inferência em hardware.
 
 
-## 3.1 Módulo Principal (Co-processador) e Interface
+## 4.1 Módulo Principal (Co-processador) e Interface
 
 O módulo de topo, denominado `co_processador`, atua como interface entre os sinais externos (interruptores e botões) e o núcleo de processamento interno. Este bloco é responsável por coordenar a execução do sistema e distribuir os dados para os submódulos apropriados.
 
@@ -140,7 +140,7 @@ As principais funções deste módulo incluem:
 - Interface com o módulo de visualização (`display`), responsável pela apresentação do estado do sistema (IDLE, BUSY, DONE) e do resultado da inferência em displays de 7 segmentos.
 
 
-## 3.2 Memórias Internas (BRAM)
+## 4.2 Memórias Internas (BRAM)
 
 Para garantir acesso determinístico e de baixa latência, o sistema utiliza memórias internas do tipo Block RAM (BRAM), inferidas através da megafunção `altsyncram` da plataforma FPGA.
 
@@ -155,7 +155,7 @@ A organização da memória é estruturada da seguinte forma:
 Essa organização em blocos de memória permite que os dados sejam fornecidos de forma sequencial ao datapath, sincronizados com a FSM de controle.
 
 
-## 3.3 Unidade de Controle: Máquina de Estados Finita (FSM)
+## 4.3 Unidade de Controle: Máquina de Estados Finita (FSM)
 
 O fluxo de execução do co-processador é coordenado por uma máquina de estados finita (FSM), responsável por orquestrar todas as etapas da inferência.
 
@@ -169,15 +169,15 @@ O processamento é dividido em duas fases principais:
 
 Essa abordagem sequencial permite reutilização eficiente dos recursos de hardware.
 
-## 3.4 Via de Dados (Datapath)
+## 4.4 Via de Dados (Datapath)
 
 O datapath é responsável pela execução das operações matemáticas do sistema, sendo composto por três blocos principais.
 
-### Bloco MAC (Multiply-Accumulate)
+### 4.4.1 Bloco MAC (Multiply-Accumulate)
 
 O bloco MAC realiza as operações fundamentais de soma de produtos em ponto fixo, constituindo o núcleo computacional do co-processador.
 
-### Função de Ativação
+### 4.4.2 Função de Ativação
 
 As funções de ativação (sigmoide e tangente hiperbólica) são implementadas através de aproximações lineares por partes (*piecewise linear approximation*), reduzindo significativamente o custo computacional.
 
@@ -185,7 +185,7 @@ O domínio da função é particionado em intervalos, permitindo que operações
 
 A seleção da função de ativação é controlada pela FSM, permitindo alternância dinâmica entre diferentes modos de operação.
 
-### Bloco Argmax
+### 4.4.3 Bloco Argmax
 
 O bloco argmax é responsável pela etapa final de decisão da rede neural.
 
@@ -193,14 +193,14 @@ Durante o processamento da camada de saída, cada valor de ativação é compara
 
 Ao final do processamento das 10 classes, o sistema ativa a flag de conclusão (`done`) e disponibiliza o valor final da predição como saída do co-processador.
 
-## 3.4 Unidade de Controle — Máquina de Estados Finita (FSM)
+## 4.4.4 Unidade de Controle — Máquina de Estados Finita (FSM)
 
 A unidade de controle do co-processador é implementada por uma Máquina de Estados Finita (FSM), responsável por coordenar todas as etapas do fluxo de inferência. Sua função principal é orquestrar a leitura de dados, execução do datapath e armazenamento dos resultados, garantindo sincronização entre memória e processamento.
 
 O funcionamento da FSM é dividido em duas fases principais: processamento da camada oculta e processamento da camada de saída, seguidas da etapa de finalização.
 
 
-### Camada Oculta (128 neurônios)
+### 4.4.5 Camada Oculta (128 neurônios)
 
 Nesta fase, a FSM executa o processamento sequencial de cada neurônio da camada oculta. Para cada neurônio, são realizadas operações de leitura de dados, cálculo no MAC e aplicação da função de ativação, com armazenamento intermediário do resultado.
 
@@ -212,7 +212,7 @@ Esse ciclo é repetido 128 vezes, uma vez para cada neurônio da camada oculta, 
 
 ---
 
-### Camada de Saída (10 classes)
+### 4.4.6 Camada de Saída (10 classes)
 
 Após a conclusão da camada oculta, a FSM passa para o processamento da camada de saída. Nesta etapa, os valores armazenados da camada anterior são utilizados para calcular a ativação final de cada classe.
 
@@ -224,7 +224,7 @@ Esse processo é repetido 10 vezes, correspondendo às classes de saída (0 a 9)
 
 ---
 
-### Etapa de Decisão e Finalização
+### 4.4.7 Etapa de Decisão e Finalização
 
 Após o cálculo das saídas, a FSM aciona o bloco de decisão (argmax), responsável por identificar a maior ativação entre as classes.
 
@@ -239,7 +239,7 @@ Nesta etapa, o sistema:
 * armazena o índice correspondente como predição final
 * ativa o sinal `done`, indicando o término da execução
 
-## 3.5 ISA — Conjunto de Instruções 
+## 4.5 ISA — Conjunto de Instruções 
 
 A arquitetura do co-processador define um conjunto reduzido de instruções responsável pela transferência de dados, configuração da memória interna e controle da execução da inferência. Cada instrução é codificada em 32 bits, utilizando os três bits mais significativos para identificação da operação.
 
@@ -263,7 +263,7 @@ A arquitetura do co-processador define um conjunto reduzido de instruções resp
 
 ---
 
-## 3.5 Banco de Registradores e Interface de Controle
+## 4.6 Banco de Registradores e Interface de Controle
 
 > **Observação de implementação:** O banco de registradores descrito nesta seção não foi implementado de forma estritamente fiel a uma arquitetura clássica de CPU, sendo adaptado às necessidades específicas do fluxo de inferência do co-processador.
 
@@ -271,7 +271,7 @@ O sistema não utiliza um banco de registradores tradicional como em CPUs conven
 
 Esses registradores são responsáveis por armazenar estados intermediários e coordenar a execução do fluxo de inferência.
 
-### Registradores de Controle
+### 4.7 Registradores de Controle
 
 Os principais registradores utilizados no sistema são:
 * **reg_instr**: registra a instrução atualmente decodificada pela interface ISA (opcode e campos associados)
@@ -281,9 +281,9 @@ Os principais registradores utilizados no sistema são:
 * **reg_pred**: armazena o resultado final da classificação (0–9)
 
 
-## Especificação de Hardware e Software
+## 5. Especificação de Hardware e Software
 
-### Hardware Utilizado
+### 5.1 Hardware Utilizado
 
 | Componente            | Especificação                                               |
 |----------------------|-------------------------------------------------------------|
@@ -306,7 +306,7 @@ A comunicação entre software (HPS) e hardware (FPGA) é realizada por meio de 
 
 ---
 
-### Software Utilizado
+### 5.2 Software Utilizado
 
 | Software            | Finalidade                                                |
 |--------------------|-----------------------------------------------------------|
