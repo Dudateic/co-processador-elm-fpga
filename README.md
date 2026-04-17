@@ -49,12 +49,12 @@ O núcleo inteligente do sistema baseia-se na Extreme Learning Machine (ELM), um
 
 Para o escopo deste projeto, a fase de treinamento é abstraída, sendo o sistema embarcado responsável exclusivamente pela fase de inferência (classificação), utilizando os parâmetros W_in, b e β previamente fornecidos.
 
-### 3.1.1 Camada de Entrada
+#### 3.1.1 Camada de Entrada
 ---
 
 A camada de entrada recebe um vetor x correspondente à imagem de entrada no formato 28×28 pixels em escala de cinza, totalizando 784 valores. Cada pixel é convertido para um vetor unidimensional. Nesta etapa não há processamento matemático complexo, apenas a preparação dos dados para a rede neural.
 
-### 3.1.2 Camada Oculta
+#### 3.1.2 Camada Oculta
 ---
 
 A camada oculta é responsável pela extração de características não lineares a partir da entrada. O processamento ocorre por meio de uma combinação linear entre entrada e pesos W_in, somada ao viés b, seguida de uma função de ativação não linear:
@@ -66,7 +66,7 @@ h = activation(W_in · x + b)
 Nesta etapa são realizadas operações intensivas de multiplicação e acumulação (MAC), sendo o principal ponto de aceleração em hardware no co-processador.
 
 
-### 3.1.3 Camada de Saída
+#### 3.1.3 Camada de Saída
 ---
 
 A camada de saída possui 10 neurônios, correspondentes às classes de 0 a 9. O vetor de saída y é calculado por:
@@ -78,7 +78,7 @@ A camada de saída possui 10 neurônios, correspondentes às classes de 0 a 9. O
 Cada elemento do vetor representa a ativação associada a uma classe específica.
 
 
-### 3.1.4 Cômputo da Predição
+#### 3.1.4 Cômputo da Predição
 ---
 
 A classificação final é obtida através da operação argmax:
@@ -90,14 +90,14 @@ pred = argmax(y)
 O índice retornado corresponde ao dígito predito pelo sistema.
 
 
-## 3.2 Visão Geral do Fluxo de Inferência
+### 3.2 Visão Geral do Fluxo de Inferência
 
 O fluxo completo do sistema ELM, desde a entrada da imagem até a decisão final da classe, é apresentado na figura 1.
 
 ![Figura 1 – Diagrama geral da inferência na ELM](Assets/figuras/diagrama_geral.png)
 **Figura 1 – Diagrama geral da inferência na ELM**
 
-## 3.3 Aritmética de Ponto Fixo (Q4.12)
+### 3.3 Aritmética de Ponto Fixo (Q4.12)
 
 Em arquiteturas FPGA, o uso de ponto flutuante é custoso em termos de área e desempenho. Por isso, o sistema utiliza representação em ponto fixo no formato Q4.12.
 
@@ -110,7 +110,7 @@ O formato Q4.12 é definido como:
 Essa representação permite que operações de soma e multiplicação sejam realizadas com lógica inteira, reduzindo o uso de recursos da FPGA e aumentando a eficiência do datapath.
 
 
-## 3.4 Organização e Uso de Memória no Co-processador
+### 3.4 Organização e Uso de Memória no Co-processador
 
 A eficiência de arquiteturas baseadas em redes neurais em hardware depende diretamente da forma como os dados são armazenados e acessados. No caso da Extreme Learning Machine (ELM), uma parcela significativa do custo computacional está associada não apenas às operações aritméticas, mas também ao volume de acessos à memória necessários para leitura dos vetores de entrada e dos parâmetros do modelo.
 
@@ -129,7 +129,7 @@ Essa organização baseada em RAM interna reduz gargalos de acesso à memória e
 A arquitetura do co-processador ELM foi desenvolvida de forma modular, separando as funções de controle, armazenamento de dados, via de dados (*datapath*) e interface com o utilizador. Essa divisão permite maior escalabilidade e organização do fluxo de execução da inferência em hardware.
 
 
-## 4.1 Módulo Principal (Co-processador) e Interface
+### 4.1 Módulo Principal (Co-processador) e Interface
 
 O módulo de topo, denominado `co_processador`, atua como interface entre os sinais externos (interruptores e botões) e o núcleo de processamento interno. Este bloco é responsável por coordenar a execução do sistema e distribuir os dados para os submódulos apropriados.
 
@@ -140,7 +140,7 @@ As principais funções deste módulo incluem:
 - Interface com o módulo de visualização (`display`), responsável pela apresentação do estado do sistema (IDLE, BUSY, DONE) e do resultado da inferência em displays de 7 segmentos.
 
 
-## 4.2 Memórias Internas (BRAM)
+### 4.2 Memórias Internas (BRAM)
 
 Para garantir acesso determinístico e de baixa latência, o sistema utiliza memórias internas do tipo Block RAM (BRAM), inferidas através da megafunção `altsyncram` da plataforma FPGA.
 
@@ -155,7 +155,7 @@ A organização da memória é estruturada da seguinte forma:
 Essa organização em blocos de memória permite que os dados sejam fornecidos de forma sequencial ao datapath, sincronizados com a FSM de controle.
 
 
-## 4.3 Unidade de Controle: Máquina de Estados Finita (FSM)
+### 4.3 Unidade de Controle: Máquina de Estados Finita (FSM)
 
 O fluxo de execução do co-processador é coordenado por uma máquina de estados finita (FSM), responsável por orquestrar todas as etapas da inferência.
 
@@ -169,15 +169,15 @@ O processamento é dividido em duas fases principais:
 
 Essa abordagem sequencial permite reutilização eficiente dos recursos de hardware.
 
-## 4.4 Via de Dados (Datapath)
+### 4.4 Via de Dados (Datapath)
 
 O datapath é responsável pela execução das operações matemáticas do sistema, sendo composto por três blocos principais.
 
-### 4.4.1 Bloco MAC (Multiply-Accumulate)
+#### 4.4.1 Bloco MAC (Multiply-Accumulate)
 
 O bloco MAC realiza as operações fundamentais de soma de produtos em ponto fixo, constituindo o núcleo computacional do co-processador.
 
-### 4.4.2 Função de Ativação
+#### 4.4.2 Função de Ativação
 
 As funções de ativação (sigmoide e tangente hiperbólica) são implementadas através de aproximações lineares por partes (*piecewise linear approximation*), reduzindo significativamente o custo computacional.
 
@@ -185,7 +185,7 @@ O domínio da função é particionado em intervalos, permitindo que operações
 
 A seleção da função de ativação é controlada pela FSM, permitindo alternância dinâmica entre diferentes modos de operação.
 
-### 4.4.3 Bloco Argmax
+#### 4.4.3 Bloco Argmax
 
 O bloco argmax é responsável pela etapa final de decisão da rede neural.
 
@@ -193,14 +193,14 @@ Durante o processamento da camada de saída, cada valor de ativação é compara
 
 Ao final do processamento das 10 classes, o sistema ativa a flag de conclusão (`done`) e disponibiliza o valor final da predição como saída do co-processador.
 
-## 4.4.4 Unidade de Controle — Máquina de Estados Finita (FSM)
+#### 4.4.4 Unidade de Controle — Máquina de Estados Finita (FSM)
 
 A unidade de controle do co-processador é implementada por uma Máquina de Estados Finita (FSM), responsável por coordenar todas as etapas do fluxo de inferência. Sua função principal é orquestrar a leitura de dados, execução do datapath e armazenamento dos resultados, garantindo sincronização entre memória e processamento.
 
 O funcionamento da FSM é dividido em duas fases principais: processamento da camada oculta e processamento da camada de saída, seguidas da etapa de finalização.
 
 
-### 4.4.5 Camada Oculta (128 neurônios)
+#### 4.4.5 Camada Oculta (128 neurônios)
 
 Nesta fase, a FSM executa o processamento sequencial de cada neurônio da camada oculta. Para cada neurônio, são realizadas operações de leitura de dados, cálculo no MAC e aplicação da função de ativação, com armazenamento intermediário do resultado.
 
@@ -212,7 +212,7 @@ Esse ciclo é repetido 128 vezes, uma vez para cada neurônio da camada oculta, 
 
 ---
 
-### 4.4.6 Camada de Saída (10 classes)
+#### 4.4.6 Camada de Saída (10 classes)
 
 Após a conclusão da camada oculta, a FSM passa para o processamento da camada de saída. Nesta etapa, os valores armazenados da camada anterior são utilizados para calcular a ativação final de cada classe.
 
@@ -224,7 +224,7 @@ Esse processo é repetido 10 vezes, correspondendo às classes de saída (0 a 9)
 
 ---
 
-### 4.4.7 Etapa de Decisão e Finalização
+#### 4.4.7 Etapa de Decisão e Finalização
 
 Após o cálculo das saídas, a FSM aciona o bloco de decisão (argmax), responsável por identificar a maior ativação entre as classes.
 
@@ -239,7 +239,7 @@ Nesta etapa, o sistema:
 * armazena o índice correspondente como predição final
 * ativa o sinal `done`, indicando o término da execução
 
-## 4.5 ISA — Conjunto de Instruções 
+### 4.5 ISA — Conjunto de Instruções 
 
 A arquitetura do co-processador define um conjunto reduzido de instruções responsável pela transferência de dados, configuração da memória interna e controle da execução da inferência. Cada instrução é codificada em 32 bits, utilizando os três bits mais significativos para identificação da operação.
 
@@ -263,7 +263,7 @@ A arquitetura do co-processador define um conjunto reduzido de instruções resp
 
 ---
 
-## 4.6 Banco de Registradores e Interface de Controle
+### 4.6 Banco de Registradores e Interface de Controle
 
 > **Observação de implementação:** O banco de registradores descrito nesta seção não foi implementado de forma estritamente fiel a uma arquitetura clássica de CPU, sendo adaptado às necessidades específicas do fluxo de inferência do co-processador.
 
@@ -316,11 +316,11 @@ A comunicação entre software (HPS) e hardware (FPGA) é realizada por meio de 
 | Python              | Geração de dados e conversão de imagens                  |
 | Verilog HDL         | Implementação do co-processador                          |
 
-## 5. Processo de Desenvolvimento
+## 6. Processo de Desenvolvimento
 
 O processo de desenvolvimento foi conduzido de forma progressiva, permitindo a implementação e validação de cada etapa do sistema de maneira estruturada. Também foram realizadas pesquisas e análises para compreender as etapas do desenvolvimento, possibilitando identificar os elementos essenciais para a implementação do sistema e apoiar a compreensão de cada fase do processo.
 
-### 5.1 Concepção e Definição de Arquitetura
+### 6.1 Concepção e Definição de Arquitetura
 
 Nesta etapa foi realizada a análise do problema e definida a arquitetura geral do sistema, com foco na organização dos módulos de processamento e no fluxo de dados necessário para a execução da inferência.
 
@@ -328,7 +328,7 @@ Foram estabelecidos os requisitos principais do projeto, incluindo o uso da plat
 
 Também foi definida a estratégia de armazenamento dos parâmetros do sistema em memória interna da FPGA, utilizando arquivos de inicialização para garantir a disponibilidade dos dados durante a execução.
 
-### 5.2 Modelagem em Verilog (RTL)
+### 6.2 Modelagem em Verilog (RTL)
 
 Nesta fase, o sistema foi implementado em Verilog no nível RTL, seguindo uma organização baseada em módulos independentes para cada unidade funcional do co-processador.
 
@@ -341,7 +341,7 @@ Foram desenvolvidos os principais blocos do sistema:
 - **Memórias:** estruturas de armazenamento geradas pelo Quartus para dados e parâmetros;
 - **ISA:** conjunto de instruções utilizado para controle das operações do co-processador.
 
-### 5.3 Simulação e Validação
+### 6.3 Simulação e Validação
 
 Antes de ser implementado na FPGA, o sistema foi testado por simulação usando ModelSim e testbenches em Verilog.
 
@@ -349,7 +349,7 @@ Foram usados vetores de teste ($K$ casos) para comparar os resultados com um mod
 
 Essa etapa serviu para encontrar e corrigir erros de lógica e de representação em ponto fixo.
 
-### 5.4 Síntese e Implementação na FPGA
+### 6.4 Síntese e Implementação na FPGA
 
 Após a etapa de simulação, o código foi sintetizado no Intel Quartus Prime para a FPGA Cyclone V da plataforma DE1-SoC.
 
@@ -357,13 +357,13 @@ Durante o processo de síntese, foi verificado o uso de recursos do dispositivo 
 
 Em seguida, o sistema foi implementado na placa FPGA para preparação dos testes em hardware.
 
-## 6. Instalação e Configuração do Projeto
+## 7. Instalação e Configuração do Projeto
 
 A organização do projeto foi estruturada de forma modular, separando claramente os elementos de hardware, validação, dados e suporte à automação. Essa divisão permite um fluxo de desenvolvimento mais controlado, facilitando tanto a simulação quanto a síntese e implementação do sistema em FPGA.
 
 ---
 
-### 6.1 Estrutura do Repositório
+### 7.1 Estrutura do Repositório
 
 ```text
 co-processador-elm-fpga/
@@ -403,7 +403,7 @@ co-processador-elm-fpga/
 └── README.md
 
 ```
-### 6.2 Configuração do Ambiente
+### 7.2 Configuração do Ambiente
 
 1. Clonar o repositório do projeto:
 ```bash
@@ -417,13 +417,13 @@ cd co-processador-elm-fpga
 3. Compilar o projeto:
   Executar a compilação completa (Analysis & Synthesis → Fitter → Assembler)
 
-## 7. Simulação e Testes
+## 8. Simulação e Testes
 
 A validação do sistema foi realizada em múltiplos níveis de abstração, abrangendo desde testes unitários de módulos até a simulação completa do pipeline de inferência. O objetivo foi garantir a corretude funcional do hardware e sua consistência em relação ao modelo de referência (golden model).
 
 A estratégia de verificação utilizou testbenches em Verilog, arquivos de estímulo no formato `.hex`, captura de formas de onda e comparação numérica entre saídas do hardware e do modelo em software.
 
-### 7.1 Estratégia de Validação
+### 8.1 Estratégia de Validação
 
 A validação foi estruturada em três níveis complementares:
 
@@ -432,7 +432,7 @@ A validação foi estruturada em três níveis complementares:
 - **Validação sistêmica:** execução completa do pipeline via FSM
 
 
-### 7.2 Metodologia de Simulação
+### 8.2 Metodologia de Simulação
 
 Os testes foram implementados com técnicas padrão de verificação em HDL:
 
@@ -444,7 +444,7 @@ Os testes foram implementados com técnicas padrão de verificação em HDL:
 
 
 
-### 7.3 Resumo dos Testes Realizados
+### 8.3 Resumo dos Testes Realizados
 
 | Módulo / Etapa     | Entrada de Teste              | Saída Gerada      | Validação            | Objetivo |
 |--------------------|------------------------------|-------------------|----------------------|----------|
@@ -456,11 +456,11 @@ Os testes foram implementados com técnicas padrão de verificação em HDL:
 | Sistema Completo   | FSM completa                 | `saida_final.hex` | Comparação global    | Validação end-to-end |
 | K Vetores de Teste | Dataset externo              | Predição final    | Software             | Acurácia geral |
 
-## 8. Análise dos Resultados
+## 9. Análise dos Resultados
 
 A análise dos resultados tem como objetivo avaliar o comportamento do sistema em comparação com o modelo de referência, considerando tanto a precisão global quanto as fontes de erro.
 
-### 8.1 Desempenho Geral
+### 9.1 Desempenho Geral
 
 | Métrica              | Resultado |
 |---------------------|----------|
@@ -470,7 +470,7 @@ A análise dos resultados tem como objetivo avaliar o comportamento do sistema e
 | Sensibilidade numérica | Moderada |
 | Erros críticos      | Baixos   |
 
-### 8.2 Validação com K Vetores
+### 9.2 Validação com K Vetores
 
 O sistema foi avaliado utilizando um conjunto de K vetores de teste fornecidos externamente, permitindo análise estatística da performance.
 
@@ -480,7 +480,7 @@ Os resultados indicam que:
 - Erros ocorreram principalmente em casos com baixa margem entre classes
 - O comportamento geral permanece consistente com o modelo de referência
 
-### 8.3 Análise das Divergências
+### 9.3 Análise das Divergências
 
 As diferenças observadas entre o hardware e o modelo de referência seguem padrões bem definidos:
 
@@ -489,15 +489,29 @@ As diferenças observadas entre o hardware e o modelo de referência seguem padr
 - Aproximações lineares nas funções de ativação
 - Saturação do MAC em casos extremos
 
-### 8.4 Conclusão da Análise
+### 9.4 Recursos Utilizados
+| Recurso                 | Utilizado | Total     | %   |
+| ----------------------- | --------- | --------- | --- |
+| Lógica (ALMs)           | 2.069     | 32.070    | 6%  |
+| Registradores           | 2.636     | —         | —   |
+| Memória (bits usados)   | 1.634.454 | 4.065.280 | 40% |
+| Memória (bits alocados) | 2.088.960 | 4.065.280 | 51% |
+| Blocos M10K             | 204       | 397       | 51% |
+| DSPs                    | 1         | 87        | 1%  |
+| Pinos I/O               | 56        | 457       | 12% |
+| Clock global            | 1         | 16        | 6%  |
+
+
+
+### 9.5 Conclusão da Análise
 
 Os resultados demonstram que, apesar das limitações inerentes à implementação em hardware, o sistema apresenta comportamento estável e coerente, validando a arquitetura implementada.
 
-## Equipe de Desenvolvimento
+## 10. Equipe de Desenvolvimento
 
 O presente projeto foi desenvolvido por Maria Eduarda Teixeira Costa, Taylon Luis do Nascimento Cerqueira e Yasmim de Paula Oliveira.
 
-## Referências
+## 11. Referências
 
 - LEDS – Laboratório de Eletrônica Digital e Sistemas (UEFS)  
   https://sites.google.com/uefs.br/ltec3-leds
