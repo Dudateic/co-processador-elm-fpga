@@ -31,7 +31,6 @@ module display (
     input  wire        clk,
     input  wire        rst_n,
     input  wire        busy,
-	 input  wire show_status,
     input  wire        done,
     input  wire [3:0]  pred,
     input  wire [2:0]  opcode,
@@ -114,14 +113,6 @@ module display (
 
     reg [6:0] o5, o4, o3, o2, o1;
     always @(*) begin
-	     if (show_status) begin // aqui
-			  HEX5 = status_reg[1] ? SEG_Y : SEG_OFF; // done
-			  HEX4 = status_reg[0] ? SEG_B : SEG_OFF; // busy
-			  HEX3 = SEG_S;
-			  HEX2 = SEG_T;
-			  HEX1 = SEG_OFF;
-			  HEX0 = SEG_OFF;
-			end else begin
 			
 				case (opcode)
 
@@ -163,7 +154,6 @@ module display (
 						 o1 = SEG_R;
 					end
 			endcase
-		end
     end
 
     always @(*) begin

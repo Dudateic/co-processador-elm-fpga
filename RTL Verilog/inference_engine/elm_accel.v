@@ -1,5 +1,5 @@
 /*
-Módulo: co_processador
+Módulo: elm_accel
 Descrição:
     Este módulo implementa o bloco de controle de um coprocessador em FPGA,
     sendo responsável por interpretar comandos provenientes de chaves (SW)
@@ -25,6 +25,7 @@ Entradas:
                  - KEY[0]: reset (ativo em nível baixo)
                  - KEY[1]: sinal de confirmação (enter), utilizado para
                            disparo da instrução
+                 - KEY[3]: sinal de troca de ativação
 									
     SW         : Chaves para entrada de comandos, endereços e dados.
 
@@ -33,7 +34,7 @@ Saídas:
                  estados internos, opcode atual e resultado da inferência.
 					  
 */
-module co_processador(
+module elm_accel(
     input  wire        clk,
 	 input  wire ativacao,
     input  wire [1:0]  KEY,
@@ -50,7 +51,6 @@ module co_processador(
     wire rst_n    = KEY[0];
     wire key1_raw = ~KEY[1];
 	 
-	 reg show_status;
     
 	 reg key1_d;
     wire key1_fall = ~key1_raw & key1_d;
@@ -72,7 +72,8 @@ module co_processador(
         OP_BET    = 3'b011,
         OP_INFER  = 3'b100,
 		  OP_STATUS = 3'b101;
-
+		// adidiconar o cycles 
+	
     // Pulso de envio: KEY[1] caindo, SW[9]=0, opcode != INFER
     wire do_send  = ~sw_start & (SW != 0) & key1_fall & (opcode != OP_INFER) & (opcode != OP_STATUS);
 	 
@@ -135,10 +136,6 @@ module co_processador(
         .bias_we    (bias_we),
         .bias_waddr (bias_waddr),
         .bias_wdata (bias_wdata),
-
-		  .status_we   (status_we),
-		  .status_waddr(status_waddr),
-		  .status_wdata(status_wdata),
 		  
         .done       (done_w),
         .pred       (pred_w),
@@ -152,7 +149,6 @@ module co_processador(
         .busy   (~busy_w),
         .done   (done_w),
         .pred   (pred_w),
-		  .show_status (show_status),
         .opcode (opcode),
         .HEX0   (HEX0),
         .HEX1   (HEX1),

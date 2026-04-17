@@ -1,5 +1,12 @@
 
-State Machine - |fsm|state
+State Machine - |elm_accel|display:u_disp|state
+Name state.ST_OP state.ST_DONE state.ST_BUSY state.ST_IDLE 
+state.ST_IDLE 0 0 0 0 
+state.ST_BUSY 0 0 1 1 
+state.ST_DONE 0 1 0 1 
+state.ST_OP 1 0 0 1 
+
+State Machine - |elm_accel|fsm:u_fsm|state
 Name state.ERROR state.DONE_ST state.W_O_WRITE state.O_WRITE state.W_O_LATCH state.O_LATCH state.O_WAIT_DONE state.O_RUN state.O_WAIT_PIPE state.W_O_PRIME state.O_PRIME state.O_WAIT_BETA state.W_O_RST state.O_RESET state.W_H_WRITE state.H_WRITE state.W_H_SIG state.H_SIG state.W_H_LATCH state.H_LATCH state.H_WAIT_DONE state.H_RUN state.H_WAIT_PIPE state.W_H_PRIME state.H_PRIME state.H_WAIT_ADDR state.W_H_RST state.H_RESET state.IDLE 
 state.IDLE 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
 state.H_RESET 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 

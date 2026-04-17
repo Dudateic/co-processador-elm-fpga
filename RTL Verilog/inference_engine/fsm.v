@@ -71,9 +71,7 @@ module fsm (
 	input  wire        bias_we,
 	input  wire [6:0]  bias_waddr,
 	input  wire [15:0] bias_wdata,
-	input  wire		    status_we,
-	input  wire [6:0]  status_waddr,
-	input  wire [15:0] status_wdata
+	input  wire		    status_we
 );
 
 	parameter IMG_SIZE  = 784;
@@ -107,6 +105,8 @@ module fsm (
 	reg [4:0]  mac_shift;
 	reg [4:0] state;
 
+	reg [31:0] cycles_final;
+	
 	reg argmax_start;
 	reg argmax_reset;
 	reg mac_reset;
@@ -127,6 +127,14 @@ module fsm (
 	wire [3:0] pred_wire;
 	wire [3:0] leds;
 	
+	
+	reg        cycles_we;  
+	reg [3:0]  cycles_waddr;
+	reg [31:0] cycles_idx;
+	reg [3:0]  cycles_wdata;
+	wire signed [31:0] cycles_dout;
+
+	  
    wire mac_done;
    wire argmax_done;
 
@@ -176,6 +184,16 @@ module fsm (
         .rden    (1'b1),
         .q       (bias_dout)
     );
+	 
+	cycles u_ram_cycles (
+        .clock   (clk),
+        .wren    (cycles_we),
+        .address (cycles_waddr),
+        .data    (cycles_wdata),
+        .rden    (1'b1),
+        .q       (cycles_dout)
+    );
+	 
 	 
     mac mac_inst (
         .clk   (clk),
@@ -486,6 +504,13 @@ module fsm (
                     if (argmax_done) begin
                         done <= 1;
                         pred <= pred_wire;
+								
+								cycles_we <= 1;     
+								cycles_final  <= cycles;
+								cycles_waddr <= cycles_idx;
+								cycles_idx <= cycles_idx + 1;
+								cycles_wdata <= cycles;
+
                     end
 						  
                 end
