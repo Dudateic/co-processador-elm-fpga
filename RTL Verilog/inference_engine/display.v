@@ -27,9 +27,12 @@ Saídas:
     HEX0-HEX5 : Displays de 7 segmentos.
 
 */
+
+`include "constants.vh"
+
 module display (
     input  wire        clk,
-    input  wire        rst_n,
+    input  wire        rst,
     input  wire        busy,
     input  wire        done,
     input  wire [3:0]  pred,
@@ -45,29 +48,13 @@ module display (
 
 
     localparam [6:0]
-        SEG_OFF = 7'h7F,
-        SEG_I   = 7'h79,
-        SEG_M   = 7'h2A,
-        SEG_P   = 7'h0C,
-        SEG_B   = 7'h03,
-        SEG_G   = 7'h42,
-        SEG_O   = 7'h40,
-        SEG_A   = 7'h08,
-        SEG_E   = 7'h06,
-        SEG_R   = 7'h2F,
-        SEG_Y   = 7'h11,
-        SEG_U   = 7'h41,
-        SEG_N   = 7'h2B,
-        SEG_d   = 7'h21,
-		  SEG_T   = 7'h07,
-		  SEG_L   = 7'h47,
-        SEG_S   = 7'h12;
+
 
     localparam [1:0]
         ST_IDLE = 2'd0,
         ST_BUSY = 2'd1,
         ST_DONE = 2'd2,
-        ST_OP   = 2'd3;   
+        ST_OP   = 2'd3;
 		  
     reg [1:0] state;
 	 reg [1:0] status_reg;
@@ -86,8 +73,8 @@ module display (
 
     reg [3:0] pred_latch;
 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
+    always @(posedge clk or posedge rst) begin
+        if (rst)
             pred_latch <= 0;
         else if (done)
             pred_latch <= pred;
@@ -97,63 +84,69 @@ module display (
     function [6:0] digit_seg;
         input [3:0] d;
         case (d)
-            4'd0: digit_seg = 7'h40;
-            4'd1: digit_seg = 7'h79;
-            4'd2: digit_seg = 7'h24;
-            4'd3: digit_seg = 7'h30;
-            4'd4: digit_seg = 7'h19;
-            4'd5: digit_seg = 7'h12;
-            4'd6: digit_seg = 7'h02;
-            4'd7: digit_seg = 7'h78;
-            4'd8: digit_seg = 7'h00;
-            4'd9: digit_seg = 7'h10;
-            default: digit_seg = 7'h7F;
+            4'd0: digit_seg = `ZERO;
+            4'd1: digit_seg = `UM;
+            4'd2: digit_seg = `DOIS;
+            4'd3: digit_seg = `TRES;
+            4'd4: digit_seg = `QUATRO;
+            4'd5: digit_seg = `CINCO;
+            4'd6: digit_seg = `SEIS;
+            4'd7: digit_seg = `SETE;
+            4'd8: digit_seg = `OITO;
+            4'd9: digit_seg = `NOVE;
+         default: digit_seg = `SEG_OFF;
         endcase
     endfunction
 
     reg [6:0] o5, o4, o3, o2, o1;
     always @(*) begin
-			
-				case (opcode)
+        case (opcode)
 
-					3'b000: begin // IMG
-						 o5 = SEG_I; 
-						 o4 = SEG_M; 
-						 o3 = SEG_G;
-					end
+            `OP_IMG: begin // IMG
+                    o5 = SEG_I; 
+                    o4 = SEG_M; 
+                    o3 = SEG_G;
+            end
 
-					3'b001: begin // PES
-						 o5 = SEG_P; 
-						 o4 = SEG_E;
-						 o3 = SEG_S;
-					end
+            `OP_PES_ADDR,
+            `OP_PES_DATA: begin // PES
+                    o5 = SEG_P; 
+                    o4 = SEG_E;
+                    o3 = SEG_S;
+            end
 
-					3'b010: begin // BIA
-						 o5 = SEG_B; 
-						 o4 = SEG_I; 
-						 o3 = SEG_A;
-					end
+            `OP_BIAS: begin // BIA
+                    o5 = SEG_B; 
+                    o4 = SEG_I; 
+                    o3 = SEG_A;
+            end
 
-					3'b011: begin // BET
-						 o5 = SEG_B; 
-						 o4 = SEG_E; 
-						 o3 = SEG_T;
-					end
+            `OP_BETA: begin // BET
+                    o5 = SEG_B; 
+                    o4 = SEG_E; 
+                    o3 = SEG_T;
+            end
 
-					3'b100: begin // GO
-						 o5 = SEG_G; 
-						 o4 = SEG_O; 
-						 o3 = SEG_OFF;
-					end
-					
-					default: begin // ERROR
-						 o5 = SEG_E;
-						 o4 = SEG_R;
-						 o3 = SEG_R;
-						 o2 = SEG_O;
-						 o1 = SEG_R;
-					end
-			endcase
+            `OP_START: begin // GO
+                    o5 = SEG_G; 
+                    o4 = SEG_O; 
+                    o3 = SEG_OFF;
+            end
+
+            `OP_STATUS: begin
+                o5 = SEG_S;
+                o4 = SEG_T;
+                o3 = SEG_A;
+            end
+            
+            default: begin // ERROR
+                    o5 = SEG_E;
+                    o4 = SEG_R;
+                    o3 = SEG_R;
+                    o2 = SEG_O;
+                    o1 = SEG_R;
+            end
+        endcase
     end
 
     always @(*) begin
@@ -182,10 +175,8 @@ module display (
                 HEX3 = SEG_N;
                 HEX2 = SEG_E;
                 HEX1 = SEG_OFF;
-					 if(opcode == 3'b101) 
-						HEX0 = digit_seg(pred_latch);
-					else
-                    HEX0 = SEG_OFF;
+                if (opcode == 3'b101) HEX0 = digit_seg(pred_latch);
+                else                  HEX0 = SEG_OFF;
             end
 
             ST_OP: begin

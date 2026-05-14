@@ -53,12 +53,9 @@ Saídas:
 */
 module fsm (
 	input  wire clk,
-	input  wire rst_n,
+	input  wire rst,
 	input  wire start,
-	input  wire  ativacao,
-	output reg  done,
-	output reg busy,
-	output reg  [3:0] pred,
+	input  wire ativacao,
 	input  wire        img_we,
 	input  wire [9:0]  img_waddr,
 	input  wire [15:0] img_wdata,
@@ -71,7 +68,11 @@ module fsm (
 	input  wire        bias_we,
 	input  wire [6:0]  bias_waddr,
 	input  wire [15:0] bias_wdata,
-	input  wire		    status_we
+	input  wire		   status_we,
+
+	output reg  [3:0] pred,
+	output reg  done,
+	output reg  busy
 );
 
 	parameter IMG_SIZE  = 784;
@@ -101,8 +102,8 @@ module fsm (
 	
 	reg [7:0] n_cnt;
 	reg [3:0] c_cnt;
-	reg [9:0]  mac_n_ops;
-	reg [4:0]  mac_shift;
+	reg [9:0] mac_n_ops;
+	reg [4:0] mac_shift;
 	reg [4:0] state;
 
 	reg [31:0] cycles_final;
@@ -232,7 +233,7 @@ module fsm (
 
 	 
 	assign sig_out = ativacao ? sig_out_sigmoid : sig_out_tanh;
-	 
+	
 	always @(posedge clk) begin
 		 pixel_reg <= mac_pixel_raw;
 		 peso_reg  <= mac_peso_raw;
@@ -269,11 +270,11 @@ module fsm (
         O_WRITE       = 5'd25,
         W_O_WRITE     = 5'd26,
         DONE_ST       = 5'd27,
-		  ERROR         = 5'd28;
+		ERROR         = 5'd28;
 
 
-    always @(posedge clk) begin
-        if (!rst_n) begin
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
 		  
             for (i = 0; i < N_HIDDEN; i = i + 1) begin
                 hid[i] <= 0;
@@ -281,7 +282,7 @@ module fsm (
 					 
             state         <= IDLE;
             done          <= 0;
-				cycles        <= 0;
+			cycles        <= 0;
             n_cnt         <= 0;
             c_cnt         <= 0;
             layer2        <= 0;
@@ -302,29 +303,32 @@ module fsm (
             pred          <= 0;
             neuron_idx    <= 0;
             neuron_out    <= 0;
-				busy 			  <= 1;
+			busy 		  <= 0;
         end else begin
             mac_reset    <= 0;
             mac_start    <= 0;
             class_valid  <= 0;
             argmax_start <= 0;
             argmax_reset <= 0;
-				if (busy)
-					cycles <= cycles + 1;
+
+            if (busy)
+                cycles <= cycles + 1;
 				
             case (state)
                 // IDLE
                 IDLE: begin
-                    done        <= 0;
-						  busy        <= 1;
+                    done        <= 0;					
                     n_cnt       <= 0;
                     c_cnt       <= 0;
                     layer2      <= 0;
                     pesos_base  <= 0;
                     pesos_raddr <= 0;
                     beta_raddr  <= 0;
-                    if (start)
+
+                    if (start) begin
                         state <= H_RESET;
+                        busy  <= 1;
+                    end
                 end
 
                 // CAMADA OCULTA
@@ -504,13 +508,15 @@ module fsm (
                     if (argmax_done) begin
                         done <= 1;
                         pred <= pred_wire;
+                        busy <= 0;
 								
-								cycles_we <= 1;     
-								cycles_final  <= cycles;
-								cycles_waddr <= cycles_idx;
-								cycles_idx <= cycles_idx + 1;
-								cycles_wdata <= cycles;
-
+                        cycles_we    <= 1;     
+                        cycles_final <= cycles;
+                        cycles_waddr <= cycles_idx;
+                        cycles_idx   <= cycles_idx + 1;
+                        cycles_wdata <= cycles;
+                        
+                        state <= IDLE;
                     end
 						  
                 end
