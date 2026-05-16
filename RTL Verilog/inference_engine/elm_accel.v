@@ -76,14 +76,25 @@ module elm_accel(
             bias_we     <= 1'b0;
             result      <= 32'b0;
 
+            opcode_reg  <= 4'b0;
+            addr_reg    <= 12'b0;
+            data_reg    <= 16'b0;
+            w_addr_reg  <= 17'b0;
+            inst_reg    <= 32'b0;
+
+            bias_waddr  <= 7'b0;
+            img_waddr   <= 10'b0;
+            beta_waddr  <= 11'b0;
+            pesos_waddr <= 17'b0;
+
         end else begin
             infer_start <= 1'b0;
-            busy <= (estado != ST_IDLE && estado != ST_DONE);
 
             case (estado)
                 ST_IDLE: begin
                     done  <= 1'b0;
                     error <= 1'b0;
+                    busy  <= 1'b0;
 
                     if (enable_pulse) begin
                         inst_reg <= instruction;
@@ -107,9 +118,9 @@ module elm_accel(
                         `OP_BIAS,
                         `OP_BETA,
                         `OP_START:
-									estado <= ST_EXECUTE;
+								estado <= ST_EXECUTE;
 
-                        OP_STATUS: begin
+                        `OP_STATUS: begin
                             result <= {
                                 26'b0,
                                 wait_w_reg,
@@ -234,8 +245,7 @@ module elm_accel(
                     bias_we     <= 1'b0;
                     wait_w_reg  <= 1'b0;
 
-                     if (!enable)
-								estado <= ST_IDLE;
+                    if (!enable) estado <= ST_IDLE;
                 end
             endcase
         end
@@ -243,8 +253,9 @@ module elm_accel(
 
     fsm u_fsm (
         .clk         (clk),
-        .rst_n       (~rst),
+        .rst         (rst),
         .start       (infer_start),
+        .ativacao    (0),
 
         .img_we      (img_we),
         .img_waddr   (img_waddr),

@@ -23,7 +23,7 @@ Descrição:
 
 Entradas:
     clk           : Clock do sistema.
-    rst_n         : Reset assíncrono ativo em nível baixo.
+    rst           : Reset assíncrono ativo em nível alto.
     start         : Sinal de início da inferência.
     ativacao      : Seleção da função de ativação (sigmoid ou tanh).
 
@@ -273,7 +273,7 @@ module fsm (
 		ERROR         = 5'd28;
 
 
-    always @(posedge clk or posedge rst) begin
+    always @(posedge clk) begin
         if (rst) begin
 		  
             for (i = 0; i < N_HIDDEN; i = i + 1) begin
@@ -305,11 +305,11 @@ module fsm (
             neuron_out    <= 0;
 			busy 		  <= 0;
         end else begin
-            mac_reset    <= 0;
-            mac_start    <= 0;
-            class_valid  <= 0;
-            argmax_start <= 0;
-            argmax_reset <= 0;
+            mac_reset     <= 0;
+            mac_start     <= 0;
+            class_valid   <= 0;
+            argmax_start  <= 0;
+            argmax_reset  <= 0;
 
             if (busy)
                 cycles <= cycles + 1;

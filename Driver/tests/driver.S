@@ -1,3 +1,5 @@
+#include "hps_0.h"
+
 .section .data
 	err_open:      .asciz "ERROR: could not open /dev/mem\n"
 	err_mmap:      .asciz "ERROR: mmap() failed\n"
@@ -15,42 +17,7 @@
 .section .text
 	.global hps_open
 	.global hps_close
-	.global ledr_write
-	.global sw_read
-
-
-@ ============================================================================
-@ CONSTANTES
-@ ============================================================================
-
-.equ LW_BRIDGE_BASE,    0xFF200000
-.equ LW_BRIDGE_SPAN,    0x00005000
-
-.equ INST_BASE,         0x00000010
-.equ LEDR_BASE,         0x00000000
-.equ SW_BASE,           0x00000040
-@ Adicionar offsets do coprocessador
-
-@ Syscalls ARMv7 Linux
-.equ SYS_OPEN,         5
-.equ SYS_CLOSE,        6
-.equ SYS_WRITE,        4
-.equ SYS_MMAP2,        192
-.equ SYS_MUNMAP,       91
-
-@ open flags
-.equ O_RDWR,           2
-.equ O_SYNC,           0x101000
-
-.equ O_RDONLY          0x00
-.equ READ_MODE         0x00
-
-@ mmap flags
-.equ PROT_READ,        1
-.equ PROT_WRITE,       2
-.equ MAP_SHARED,       1
-
-.equ STDOUT,           1
+    .global enviar_imagem
 
 
 @ ============================================================================
@@ -120,7 +87,7 @@ hps_open:
     LDR R5, =hps_virtual
     STR R0, [R5]
 
-    B .open_end
+    B .hps_open_end
 
 .open_error:
     MOV R0, #STDOUT
@@ -131,7 +98,7 @@ hps_open:
     SVC #0
 
     MOV R0, #0
-    B .open_end
+    B .hps_open_end
 
 
 .mmap_error:
@@ -223,14 +190,13 @@ hps_close:
     POP {R4, R5, R7, LR}
     BX LR
 
-/**
-    Envia a imagem completamente para a fpga.
-    R0: LW_Virtual
-    R1: Caminho do arquivo .bin
-    R2: Tamanho do arquivo
- */
-
-.abrir_arquivo:
+@ |========================================>
+@ Abrir arquivo com base em um caminho
+@   R0: Caminho do arquivo .raw ou .bin
+@
+@   RETURN: FD do arquivo
+@ |========================================/
+abrir_arquivo:
     PUSH {R7, LR}
     
     MOV R1, #O_RDONLY
@@ -241,7 +207,8 @@ hps_close:
 
     CMP R0, #0
     BLT .file_open_error
-    B abrir_arquivo_fim
+
+    POP {R7, PC}
 
 .file_open_error:
     MOV R0, #STDOUT
@@ -252,47 +219,100 @@ hps_close:
     SVC #0
 
     MOV R0, #0
-.abrir_arquivo_fim:
+
     POP {R7, PC}
 
-
+@ |========================================>
+@ Enviar instruções basicas para a FPGA
+@    r0 = lw_virtual
+@    r1 = opcode
+@    r2 = addr
+@    r3 = data
+@ |========================================/
 enviar_instrucao_base:
+    PUSH {R4, R5, LR}
 
+    AND R1, R1, #0xF
 
+    LDR R4, =0xFFF
+    AND R2, R2, R4
 
+    LDR R4, =0xFFFF
+    AND R3, R3, R4
+
+    LSL R4, R1, #28
+    LSL R5, R2, #16
+    ORR R4, R4, R5
+    ORR R4, R4, R3
+
+    STR R4, [R0, #INST_BASE]      @ R0 = lw_virtual (volta a ser usado)
+
+    MOV R1, #0
+    STR R1, [R0, #ENABLE_BASE]
+    MOV R1, #1
+    STR R1, [R0, #ENABLE_BASE]
+
+.loop_enable:
+    LDR R1, [R0, #DONE_BASE]
+    CMP R1, #0
+    BEQ .loop_enable
+
+    MOV R1, #0
+    STR R1, [R0, #ENABLE_BASE]
+
+    POP {R4, R5, LR}
+    BX LR
+
+@ |========================================>
+@ Envia uma imagem para a ser escrita na memória
+@ do co-processador na FPGA
+@   R0 = lw_virtual 
+@   R1 = caminho
+@       string contendo o caminho para o arquivo contendo
+@       os dados a serem passados.
+@       O arquivo deve estar em .raw ou .bin (sem headers)
+@       com pixels de 8 bits para o procedimento
+@       funcionar corretamente.
+@
+@   RETURN: 0 se o procedimento funcionou ou -1 se
+@           houve algum problema.
+@ |========================================/
 enviar_imagem:
-    PUSH {R4-R7, LR}
+    PUSH {R4-R8, LR}
     SUB SP, SP, #4      @ Aloca 4 bytes na stack
 
-    MOV R4, R0
-    MOV R5, R1
+    MOV R4, R0          @ R4 = LW_Virtual
+    MOV R5, R1          @ R5 = Caminho
 
     MOV R0, R5
     BL abrir_arquivo
 
-    MOV R6, R0
+    MOV R6, R0          @ R6 = FD
 
     CMP R0, #0
     BEQ .return_error_IMG
+
+    MOV R7, #SYS_READ
+    MOV R8, #-1         @ Contador de endereço
+
 .loop_img:
     MOV R0, R6
-    MOV R1, SP @ O buffer é o topo da stack
-    MOV R2, #2
-    MOV R7, #3
+    MOV R1, SP          @ O buffer é o topo da stack
+    MOV R2, #1          @ Lê um byte (cada píxel tem 8bits)
     SVC #0
 
     CMP R0, #1
-    BLT .fim
+    BNE .fim
 
-    LDRSH R1, [SP]
+    MOV R0, R4          @ Parâmetro 1: LW_virtual
+    MOV R1, #OP_IMG     @ Parâmetro 2: OP_Code
+    ADD R8, R8, #1      @ 
+    MOV R2, R8          @ Parâmetro 3: Endereço
+    LDRB R3, [SP]       @ Parâmetro 4: Dado
+    BL enviar_instrucao_base
 
-    MOV R0, R4
-    BL .instrucao_imagem
-
-
-.return_error_IMG:
-    MOV R0, #-1
-    POP {R4-R7, PC}
+    CMP R8, #783
+    BLT .loop_img
 
 .fim:
     MOV R0, R6
@@ -300,4 +320,10 @@ enviar_imagem:
     SVC #0
 
     ADD SP, SP, #4
-    POP {R4-R7, PC}
+    MOV R0, #0
+    POP {R4-R8, PC}
+
+.return_error_IMG:
+    ADD SP, SP, #4
+    MOV R0, #-1
+    POP {R4-R8, PC}

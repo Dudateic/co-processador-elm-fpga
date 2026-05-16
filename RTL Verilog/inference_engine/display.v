@@ -47,9 +47,6 @@ module display (
 );
 
 
-    localparam [6:0]
-
-
     localparam [1:0]
         ST_IDLE = 2'd0,
         ST_BUSY = 2'd1,
@@ -59,8 +56,8 @@ module display (
     reg [1:0] state;
 	 reg [1:0] status_reg;
 	 
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n)
+    always @(posedge clk or posedge rst) begin
+        if (rst)
             state <= ST_IDLE;
         else if (done)
             state <= ST_DONE;
@@ -103,48 +100,48 @@ module display (
         case (opcode)
 
             `OP_IMG: begin // IMG
-                    o5 = SEG_I; 
-                    o4 = SEG_M; 
-                    o3 = SEG_G;
+                    o5 = `SEG_I; 
+                    o4 = `SEG_M; 
+                    o3 = `SEG_G;
             end
 
             `OP_PES_ADDR,
             `OP_PES_DATA: begin // PES
-                    o5 = SEG_P; 
-                    o4 = SEG_E;
-                    o3 = SEG_S;
+                    o5 = `SEG_P; 
+                    o4 = `SEG_E;
+                    o3 = `SEG_S;
             end
 
             `OP_BIAS: begin // BIA
-                    o5 = SEG_B; 
-                    o4 = SEG_I; 
-                    o3 = SEG_A;
+                    o5 = `SEG_B; 
+                    o4 = `SEG_I; 
+                    o3 = `SEG_A;
             end
 
             `OP_BETA: begin // BET
-                    o5 = SEG_B; 
-                    o4 = SEG_E; 
-                    o3 = SEG_T;
+                    o5 = `SEG_B; 
+                    o4 = `SEG_E; 
+                    o3 = `SEG_T;
             end
 
             `OP_START: begin // GO
-                    o5 = SEG_G; 
-                    o4 = SEG_O; 
-                    o3 = SEG_OFF;
+                    o5 = `SEG_G; 
+                    o4 = `SEG_O; 
+                    o3 = `SEG_OFF;
             end
 
             `OP_STATUS: begin
-                o5 = SEG_S;
-                o4 = SEG_T;
-                o3 = SEG_A;
+                o5 = `SEG_S;
+                o4 = `SEG_T;
+                o3 = `SEG_A;
             end
             
             default: begin // ERROR
-                    o5 = SEG_E;
-                    o4 = SEG_R;
-                    o3 = SEG_R;
-                    o2 = SEG_O;
-                    o1 = SEG_R;
+                    o5 = `SEG_E;
+                    o4 = `SEG_R;
+                    o3 = `SEG_R;
+                    o2 = `SEG_O;
+                    o1 = `SEG_R;
             end
         endcase
     end
@@ -152,40 +149,40 @@ module display (
     always @(*) begin
         case (state)
             ST_IDLE: begin
-                HEX5 = SEG_I;
-                HEX4 = SEG_d;
-                HEX3 = SEG_L;
-                HEX2 = SEG_E;
-                HEX1 = SEG_OFF;
-                HEX0 = SEG_OFF;
+                HEX5 = `SEG_I;
+                HEX4 = `SEG_d;
+                HEX3 = `SEG_L;
+                HEX2 = `SEG_E;
+                HEX1 = `SEG_OFF;
+                HEX0 = `SEG_OFF;
             end
 
             ST_BUSY: begin
-                HEX5 = SEG_B;
-                HEX4 = SEG_U;
-                HEX3 = SEG_S;
-                HEX2 = SEG_Y;
-                HEX1 = SEG_OFF;
-                HEX0 = SEG_OFF;
+                HEX5 = `SEG_B;
+                HEX4 = `SEG_U;
+                HEX3 = `SEG_S;
+                HEX2 = `SEG_Y;
+                HEX1 = `SEG_OFF;
+                HEX0 = `SEG_OFF;
             end
 
             ST_DONE: begin
-                HEX5 = SEG_d;
-                HEX4 = SEG_O;
-                HEX3 = SEG_N;
-                HEX2 = SEG_E;
-                HEX1 = SEG_OFF;
+                HEX5 = `SEG_d;
+                HEX4 = `SEG_O;
+                HEX3 = `SEG_N;
+                HEX2 = `SEG_E;
+                HEX1 = `SEG_OFF;
                 if (opcode == 3'b101) HEX0 = digit_seg(pred_latch);
-                else                  HEX0 = SEG_OFF;
+                else                  HEX0 = `SEG_OFF;
             end
 
             ST_OP: begin
                 HEX5 = o5;
                 HEX4 = o4;
                 HEX3 = o3;
-                HEX2 = SEG_OFF;
-                HEX1 = SEG_OFF;
-                HEX0 = SEG_OFF;
+                HEX2 = `SEG_OFF;
+                HEX1 = `SEG_OFF;
+                HEX0 = `SEG_OFF;
             end
 
             default: begin
@@ -193,8 +190,8 @@ module display (
                 HEX4 = o4;
                 HEX3 = o3;
                 HEX2 = o2;
-                HEX1 = SEG_OFF;
-                HEX0 = SEG_OFF;
+                HEX1 = `SEG_OFF;
+                HEX0 = `SEG_OFF;
             end
         endcase
     end
