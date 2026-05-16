@@ -1,41 +1,53 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include "hps_0.h"
 
-/* Declarações das funções assembly */
-extern int enviar_imagem(void* lw_virtual, const char* caminho);
+/* Funções em assembly */
+extern volatile void* hps_open(void);
+extern int hps_close(volatile void* lw_virtual);
+
+extern int enviar_imagem(volatile void* lw_virtual, const char* caminho);
 extern int abrir_arquivo(const char* caminho);
 
-/* lw_virtual falso - o stub ignora esse valor */
-#define LW_VIRTUAL_FAKE ((void*)0xDEADBEEF)
-
-/* Gera um arquivo .raw de teste com N bytes */
-static void gerar_arquivo_teste(const char* path, int n_bytes) {
-    FILE* f = fopen(path, "wb");
-    if (!f) { perror("fopen"); exit(1); }
-    for (int i = 0; i < n_bytes; i++) {
-        uint8_t val = (uint8_t)(i % 256);
-        fwrite(&val, 1, 1, f);
-    }
-    fclose(f);
-    printf("[TESTE] Arquvo '%s' criado com %d bytes.\n\n", path n_bytes);
-}
-
 int main(void) {
-    const char* arquivo = "/tmp/teste_imagem.raw";
+    volatile void* lw_virtual;
+    int fd = -1;
 
-    gerar_arquivo_teste(arquivo, 784);
+    printf("Olá, Yasuo.\n");
+    const char* arquivo = "./saida.raw";
 
-    printf("[TESTE] Chamando enviar imagem()... \n");
-     printf("%-8s %-6s %-14s %-14s %-12s\n",
-           "opcode", "addr", "addr(hex)", "data(dec)", "instrução");
-    printf("------------------------------------------------------------\n");
 
-    int resultado = enviar_imagem(LW_VIRTUAL_FAKE, arquivo);
+    if ((fd = open("/dev/mem", (O_RDWR | O_SYNC))) == -1) {
+        printf("ERRO: O \"/dev/mem\" não foi abrido.\n");
+        return -1;
+    }
+
+    lw_virtual = mmap(NULL, 0x00005000, (PROT_READ | PROT_WRITE), MAP_SHARED, fd, 0xff200000);
+
+    if (lw_virtual == MAP_FAILED) {
+        printf("ERRO: mmap() escafedeu-se.\n");
+        close(fd);
+        return -1;
+    }
+    
+    printf("Você morreu, Yasuo?\n");
+
+    int resultado = enviar_imagem(lw_virtual, arquivo);
+    printf("Ainda está aí, Yasuo?.\n");
 
     printf("------------------------------------------------------------\n");
     printf("[TESTE] Retorno de enviar_imagem: %d (%s)\n",
-           resultado, resultado == 0 ? "SUCESSO" : "ERRO");
- 
-    return resultado == 0 ? 0 : 1;
+           resultado,
+           resultado == 0 ? "SUCESSO" : "ERRO");
+
+    int close_result = hps_close(lw_virtual);
+
+    printf("[TESTE] Retorno de hps_close: %d (%s)\n",
+           close_result,
+           close_result == 0 ? "OK" : "ERRO");
+
+    return (resultado == 0 && close_result == 0) ? 0 : 1;
 }
