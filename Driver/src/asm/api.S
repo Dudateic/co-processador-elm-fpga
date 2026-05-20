@@ -65,14 +65,14 @@ hps_open:
     MOV R7, #SYS_MMAP2
     SVC #0
 
-    CMP R0, #0
-    BHI .mmap_success
+    CMN R0, #1
+    BEQ .mmap_falhou
 
     MOV R5, R0
     B .close_fd_exit
 
-.mmap_success:
-    MOV R5, R0
+.mmap_falhou:
+    MOV R5, #0
 
 .close_fd_exit:
     MOV R0, R4
@@ -125,6 +125,8 @@ reset_cop:
     
     MOV R4, #0
     STR R4, [R0, #RESET_BASE]
+
+    POP {R4, PC}
 
 
 @ ============================================================================
@@ -249,8 +251,9 @@ enviar_imagem:
     B .store_image_loop
 
 .fim_img:
-    MOV R0, #0
+    MOV R0, R6
     BL fechar_arquivo
+    MOV R0, #0
     POP {R4-R10, PC}
     
 .err_img_file:
@@ -305,8 +308,9 @@ enviar_pesos:
     B .store_pesos_loop
 
 .fim_pesos:
-    MOV R0, #0
+    MOV R0, R6
     BL fechar_arquivo
+    MOV R0, #0
     POP {R4-R10, PC}
 
 .err_pesos_file:
@@ -356,8 +360,9 @@ enviar_bias:
     B .store_bias_loop
 
 .fim_bias:
-    MOV R0, #0
+    MOV R0, R6
     BL fechar_arquivo
+    MOV R0, #0
     POP {R4-R10, PC}
 
 .err_bias_file:
@@ -407,8 +412,9 @@ enviar_beta:
     B .store_beta_loop
 
 .fim_beta:
-    MOV R0, #0
+    MOV R0, R6
     BL fechar_arquivo
+    MOV R0, #0
     POP {R4-R10, PC}
 
 .err_beta_file:

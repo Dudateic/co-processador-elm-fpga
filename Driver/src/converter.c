@@ -99,8 +99,8 @@ void load_mif_image(const char *filename, uint8_t *buffer)
     }
 
     char line[MAX_LINE];
-
     uint32_t idx = 0;
+    data_radix = RADIX_HEX;
 
     while (fgets(line, sizeof(line), fp)) {
 
@@ -159,6 +159,7 @@ void load_mif_u16(const char *filename,
     char line[MAX_LINE];
 
     uint32_t idx = 0;
+    data_radix = RADIX_HEX;
 
     while (fgets(line, sizeof(line), fp)) {
 
@@ -201,4 +202,33 @@ void load_mif_u16(const char *filename,
     fclose(fp);
 
     printf("dados carregados: %u\n", idx);
+}
+
+/**
+ * Salva um buffer de uint16_t em arquivo binário raw.
+ *
+ * @param path      Caminho do arquivo de saída
+ * @param buffer    Buffer de dados uint16_t
+ * @param count     Número de elementos a salvar
+ * @return 0 em sucesso, -1 em erro
+ */
+int save_bin_u16(const char *path, const uint16_t *buffer, uint32_t count)
+{
+    FILE *f = fopen(path, "wb");
+
+    if (!f) {
+        perror("erro ao abrir arquivo para escrita");
+        return -1;
+    }
+
+    size_t escritos = fwrite(buffer, sizeof(uint16_t), count, f);
+
+    fclose(f);
+
+    if (escritos != count) {
+        printf("Aviso: esperado %u elementos, escrito %zu\n", count, escritos);
+        return -1;
+    }
+
+    return 0;
 }

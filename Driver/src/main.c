@@ -28,6 +28,9 @@ int main()
     int32_t ciclos;
     int r;
 
+    int32_t soma_ciclos = 0;
+    int erros = 0;
+
     while (1) {
         printf("\n==================================\n");
         printf("[0] Status\n");
@@ -64,7 +67,7 @@ int main()
 
                 // Converte a imagem direto no HPS e salva como "0.bin" (definido em buffers.h/api.h)
                 // Usamos a macro image_file que você já possui definida no projeto
-                r = converter_imagem_para_raw(filename, image_file);
+                r = png_para_raw(filename, image_file);
                 
                 if (r == 0) {
                     // Se a conversão deu certo, chama a sua função em Assembly para mandar para a FPGA
@@ -129,8 +132,8 @@ int main()
 
             case 6:
                 printf("Executando bateria de benchmark (x10 inferências)...\n");
-                int32_t soma_ciclos = 0;
-                int erros = 0;
+                soma_ciclos = 0;
+                erros = 0;
 
                 for (int i = 0; i < 10; i++) {
                     status = start_inf(lw_virtual);
@@ -155,10 +158,10 @@ int main()
                 printf(" [1] Sigmoide\n");
                 printf(" [2] ReLU\n");
                 printf("=> ");
-                int ativaçao_escolhida;
-                scanf("%d", &ativaçao_escolhida);
-                if (ativaçao_escolhida >= 0 && ativaçao_escolhida <= 2) {
-                    set_activation(lw_virtual, ativaçao_escolhida);
+                int ativacao_escolhida;
+                scanf("%d", &ativacao_escolhida);
+                if (ativacao_escolhida >= 0 && ativacao_escolhida <= 2) {
+                    set_activation(lw_virtual, ativacao_escolhida);
                     printf("Funçao de ativaçao atualizada na FPGA!\n");
                 } else {
                     printf("Opçao inválida.\n");
