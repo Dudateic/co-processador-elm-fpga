@@ -56,7 +56,7 @@
 #define STDOUT          1
 
 //=== Tamanho dos arquivos
-#define image_size      1568        // 784 pixels * 2 bytes de espaço
+#define image_size      784        // 784 pixels * 2 bytes de espaço
 #define bias_size       256         // 128 bias * 2
 #define beta_size       2560        // 1280 betas * 2
 #define pesos_size      200704      // 100352 pesos * 2

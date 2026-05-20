@@ -45,7 +45,7 @@ hps_open:
 
     @ open("/dev/mem", O_RDWR | O_SYNC)
     LDR R0, =devmem
-    MOV R1, #2       @ O_RDWR
+    LDR R1, =0x101002  @ O_RDWR | O_SYNC (Ignora a cache L1/L2 e escreve direto na FPGA)
     MOV R2, #0
     MOV R7, #SYS_OPEN
     SVC #0
@@ -115,18 +115,16 @@ get_result:
 @ ============================================================================
 .type reset_cop, %function
 reset_cop:
-    PUSH {R4, LR}
-
-    MOV R4, #1
-    STR R4, [R0, #RESET_BASE]
+    MOV R1, #1
+    STR R1, [R0, #RESET_BASE]
 
     NOP
     NOP
     
-    MOV R4, #0
-    STR R4, [R0, #RESET_BASE]
+    MOV R1, #0
+    STR R1, [R0, #RESET_BASE]
 
-    POP {R4, PC}
+    BX LR
 
 
 @ ============================================================================
@@ -145,7 +143,7 @@ get_status:
     BL loop_enable
 
     LDR R0, [R0, #OUT_BASE]
-    POP {R4, PC}
+    POP {R4, R5, PC}
 
 @ ============================================================================
 @ INT32 start_inf(void* lw_virtual) -> Result
@@ -196,7 +194,7 @@ set_activation:
 @ ============================================================================
 .type get_cycles, %function
 get_cycles:
-    PUSH {R6, LR}
+    PUSH {R5-R6, LR}
     MOV R5, R0
 
     MOV R6, #OP_CYCLES
@@ -208,7 +206,7 @@ get_cycles:
 
     LDR R0, [R0, #OUT_BASE]
 
-    POP {R6, PC}
+    POP {R5-R6, PC}
 
 @ ============================================================================
 @ int enviar_imagem(void* lw_virtual)
@@ -467,7 +465,6 @@ fechar_arquivo:
     POP {R7, PC}
 
 
-
 @ ============================================================================
 @ void send_inst(void* base, int opcode, int addr, int data)
 @ ============================================================================
@@ -479,11 +476,11 @@ send_inst:
 
     LDR R4, =0xFFF          
     AND R2, R2, R4
-    LSL R2, R2, #16
+    LSL R2, R2, #0x10       @ R2 = addr << 16
 
-    ORR R5, R5, R2          @ R5 = R5 | (addr << 16)
-LR
-    LDR R4, =0XFFFF
+    ORR R5, R5, R2          @ R5 = R5 | R2
+
+    LDR R4, =0xFFFF
     AND R3, R3, R4
 
     ORR R5, R5, R3          @ R5 = R5 | data
@@ -500,7 +497,7 @@ LR
 @ void send_weight_addr(void* base, int addr)
 @ ============================================================================
 send_weight_addr:
-    PUSH {R2, R4, LR}
+    PUSH {R4, LR}
 
     MOV R2, #OP_PES_ADDR
     LSL R2, R2, #28         @ R2 = opcode << 28
@@ -514,7 +511,7 @@ send_weight_addr:
 
     BL loop_enable
 
-    POP {R2, R4, PC}
+    POP {R4, PC}
 
 @ ============================================================================
 @ void loop_enable(void* lw_virtual)
@@ -535,12 +532,4 @@ loop_enable:
     MOV R4, #0
     STR R4, [R0, #ENABLE_BASE]
 
-.wait_clear:
-    LDR R5, [R0, #DONE_BASE]
-    CMP R5, #0
-    BNE .wait_clear
-
     POP {R4-R5, PC}
-
-
-.section .note.GNU-stack, "", %progbits
