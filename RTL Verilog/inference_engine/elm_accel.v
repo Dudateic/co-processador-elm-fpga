@@ -23,8 +23,10 @@ module elm_accel(
         ST_INFER    = 3'b111;  // aguarda inferência terminar
 
     // Registradores
+    reg [1:0]  ativacao_reg;
     reg [2:0]  estado;
     reg [31:0] inst_reg;
+    wire [31:0] cycles_wire;
 
     reg wait_w_reg;
 
@@ -64,28 +66,29 @@ module elm_accel(
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            estado      <= ST_IDLE;
-            busy        <= 1'b0;
-            done        <= 1'b0;
-            error       <= 1'b0;
-            infer_start <= 1'b0;
-            wait_w_reg  <= 1'b0;
-            img_we      <= 1'b0;
-            pesos_we    <= 1'b0;
-            beta_we     <= 1'b0;
-            bias_we     <= 1'b0;
-            result      <= 32'b0;
+            estado          <= ST_IDLE;
+            busy            <= 1'b0;
+            done            <= 1'b0;
+            error           <= 1'b0;
+            infer_start     <= 1'b0;
+            wait_w_reg      <= 1'b0;
+            img_we          <= 1'b0;
+            pesos_we        <= 1'b0;
+            beta_we         <= 1'b0;
+            bias_we         <= 1'b0;
+            ativacao_reg    <= 2'b0;
+            result          <= 32'b0;
 
-            opcode_reg  <= 4'b0;
-            addr_reg    <= 12'b0;
-            data_reg    <= 16'b0;
-            w_addr_reg  <= 17'b0;
-            inst_reg    <= 32'b0;
+            opcode_reg      <= 4'b0;
+            addr_reg        <= 12'b0;
+            data_reg        <= 16'b0;
+            w_addr_reg      <= 17'b0;
+            inst_reg        <= 32'b0;
 
-            bias_waddr  <= 7'b0;
-            img_waddr   <= 10'b0;
-            beta_waddr  <= 11'b0;
-            pesos_waddr <= 17'b0;
+            bias_waddr      <= 7'b0;
+            img_waddr       <= 10'b0;
+            beta_waddr      <= 11'b0;
+            pesos_waddr     <= 17'b0;
 
         end else begin
             infer_start <= 1'b0;
@@ -97,8 +100,10 @@ module elm_accel(
                     busy  <= 1'b0;
 
                     if (enable_pulse) begin
-                        inst_reg <= instruction;
-                        estado   <= ST_FETCH;
+                        inst_reg <=instruction;
+                        busy     <=1'b1;
+                        error    <=1'b0;
+                        estado   <=ST_FETCH;
                     end
                 end
 
@@ -117,22 +122,31 @@ module elm_accel(
                         `OP_PES_DATA,
                         `OP_BIAS,
                         `OP_BETA,
-                        `OP_START:
+                        `OP_START,
+                        `OP_ACTV:
 								estado <= ST_EXECUTE;
+
 
                         `OP_STATUS: begin
                             result <= {
-                                26'b0,
-                                wait_w_reg,
-                                done_w,
-                                busy_w,
-                                pred_w
+                                20'b0,
+                                ativacao_reg,   // 2 bits
+                                wait_w_reg,     // 1 bit
+                                done_w,         // 1 bit
+                                busy_w,         // 1 bit
+                                3'b0,           // Alinhamento
+                                pred_w          // 4 bits
                             };
                             estado <= ST_DONE;
                         end
 
+                        `OP_CYCLES: begin
+                            result <= cycles_wire;
+                            estado <= ST_DONE;
+                        end
+
                         default: begin
-                            result <= 32'hFFFFFFFF;
+                            result <= 32'hFFFFFFFF; // -1: Instrução inválida
                             error  <= 1'b1;
                             estado <= ST_DONE;
                         end
@@ -142,7 +156,7 @@ module elm_accel(
                 ST_EXECUTE: begin
                     case (opcode_reg)
                         `OP_IMG: begin
-                            img_waddr <= addr_reg;
+                            img_waddr <= addr_reg[9:0];
                             img_we    <= 1'b1;
                             estado    <= ST_WAIT_W;
                         end
@@ -163,20 +177,20 @@ module elm_accel(
                                 wait_w_reg <= 1'b0;
                                 estado     <= ST_WAIT_W;
                             end else begin
-                                result <= 32'hFFFFFFFF; // erro: addr não definido
+                                result <= 32'hFFFFFFFE; // erro -2: addr não definido
                                 error  <= 1'b1;
                                 estado <= ST_DONE;
                             end
                         end
 
                         `OP_BIAS: begin
-                            bias_waddr <= addr_reg;
+                            bias_waddr <= addr_reg[6:0];
                             bias_we    <= 1'b1;
                             estado     <= ST_WAIT_W;
                         end
 
                         `OP_BETA: begin
-                            beta_waddr <= addr_reg;
+                            beta_waddr <= addr_reg[10:0];
                             beta_we    <= 1'b1;
                             estado     <= ST_WAIT_W;
                         end
@@ -186,16 +200,20 @@ module elm_accel(
                             if (!busy_w) begin
                                 infer_start <= 1'b1;
                                 estado      <= ST_INFER;
-                            end else begin
-                                // Acelerador ocupado: erro
-                                result <= 32'hFFFFFFFE;
+                            end else begin              // Acelerador ocupado: erro
+                                result <= 32'hFFFFFFFD; // Código -3: Coprocessador ocupado
                                 error  <= 1'b1;
                                 estado <= ST_DONE;
                             end
                         end
 
+                        `OP_ACTV: begin
+                            ativacao_reg <= data_reg[1:0];
+                            estado       <= ST_DONE;
+                        end
+
                         default: begin
-                            result <= 32'hFFFFFFFF;
+                            result <= 32'hFFFFFFFC; // Código -4: Erro desconhecido de execução
                             error  <= 1'b1;
                             estado <= ST_DONE;
                         end
@@ -211,7 +229,7 @@ module elm_accel(
                             estado   <= ST_FETCH;
                         end else begin
                             error  <= 1'b1;
-                            result <= 32'hFFFFFFFD;
+                            result <= 32'hFFFFFFFB; // // Quebra de sequência esperada de pesos
                             estado <= ST_DONE;
                         end
                     end
@@ -226,6 +244,7 @@ module elm_accel(
                     // Se ainda busy_w=1 ou done_w=0, fica aqui
                 end
 
+                // Garante a retenção do sinal de escrita por 1 ciclo de clock inteiro e seguro
                 ST_WAIT_W: begin
                     img_we   <= 1'b0;
                     pesos_we <= 1'b0;
@@ -245,7 +264,11 @@ module elm_accel(
                     bias_we     <= 1'b0;
                     wait_w_reg  <= 1'b0;
 
-                    if (!enable) estado <= ST_IDLE;
+                    if (!enable) begin
+                        done   <= 1'b0;
+                        busy   <= 1'b0;
+                        estado <= ST_IDLE;
+                    end
                 end
             endcase
         end
@@ -255,7 +278,7 @@ module elm_accel(
         .clk         (clk),
         .rst         (rst),
         .start       (infer_start),
-        .ativacao    (0),
+        .ativacao    (ativacao_reg),
 
         .img_we      (img_we),
         .img_waddr   (img_waddr),
@@ -272,7 +295,8 @@ module elm_accel(
         .bias_we     (bias_we),
         .bias_waddr  (bias_waddr),
         .bias_wdata  (data_reg),
-
+        
+        .cycles_out  (cycles_wire),
         .done        (done_w),
         .pred        (pred_w),
         .busy        (busy_w)

@@ -6,6 +6,13 @@
 `define OP_BETA     4'b0100
 `define OP_START    4'b0101
 `define OP_STATUS   4'b0110
+`define OP_ACTV     4'b0111
+`define OP_CYCLES   4'b1000
+
+// Ativações
+`define TANGENTE 2'b00
+`define SIGMOID  2'b01
+`define RELU     2'b10
 
 // Display
 `define SEG_OFF 7'h7F

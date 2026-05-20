@@ -1,61 +1,10 @@
-/*
-Módulo: fsm (Finite State Machine)
-Descrição:
+`include "constants.vh"
 
-    Este módulo implementa a máquina de estados finita (FSM) responsável pelo
-    controle do fluxo de execução de um coprocessador para inferência de uma
-    rede neural do tipo feedforward com camada oculta.
-
-    A arquitetura realiza duas etapas principais:
-        1) Cálculo da camada oculta (Hidden Layer)
-        2) Cálculo da camada de saída (Output Layer)
-
-    O processamento é baseado em operações MAC (Multiply-Accumulate), seguido
-    da aplicação de função de ativação (sigmoide ou tangente hiperbólica),
-    armazenando os resultados intermediários e, ao final, determinando a classe
-    predita via bloco argmax.
-
-    O módulo também gerencia o acesso às memórias internas de:
-        - Imagem (entrada)
-        - Pesos da camada oculta
-        - Pesos da camada de saída (beta)
-        - Bias
-
-Entradas:
-    clk           : Clock do sistema.
-    rst           : Reset assíncrono ativo em nível alto.
-    start         : Sinal de início da inferência.
-    ativacao      : Seleção da função de ativação (sigmoid ou tanh).
-
-    img_we        : Habilita escrita na memória de imagem.
-    img_waddr     : Endereço de escrita da imagem.
-    img_wdata     : Dado de escrita da imagem.
-
-    pesos_we      : Habilita escrita na memória de pesos.
-    pesos_waddr   : Endereço de escrita dos pesos.
-    pesos_wdata   : Dado de escrita dos pesos.
-
-    beta_we       : Habilita escrita na memória beta (camada de saída).
-    beta_waddr    : Endereço de escrita da beta.
-    beta_wdata    : Dado de escrita da beta.
-
-    bias_we       : Habilita escrita na memória de bias.
-    bias_waddr    : Endereço de escrita do bias.
-    bias_wdata    : Dado de escrita do bias.
-
-    status_we     : Canal reservado para expansão futura status.
-
-Saídas:
-    done          : Indica término da inferência.
-    busy          : Indica que o sistema está em processamento.
-    pred          : Classe predita (resultado final da rede).
-
-*/
 module fsm (
 	input  wire clk,
 	input  wire rst,
 	input  wire start,
-	input  wire ativacao,
+	input  wire [1:0]  ativacao,
 	input  wire        img_we,
 	input  wire [9:0]  img_waddr,
 	input  wire [15:0] img_wdata,
@@ -70,6 +19,7 @@ module fsm (
 	input  wire [15:0] bias_wdata,
 	input  wire		   status_we,
 
+    output reg  [31:0] cycles_out,
 	output reg  [3:0] pred,
 	output reg  done,
 	output reg  busy
@@ -117,6 +67,7 @@ module fsm (
 	wire signed [15:0] sig_in  = mac_saida_reg;
 	wire signed [15:0] sig_out_sigmoid;
 	wire signed [15:0] sig_out_tanh;
+	wire signed [15:0] sig_out_relu;
 	wire signed [15:0] sig_out;
 	wire signed [15:0] bias_dout;
 	wire signed [15:0] mac_saida;
@@ -186,16 +137,6 @@ module fsm (
         .q       (bias_dout)
     );
 	 
-	cycles u_ram_cycles (
-        .clock   (clk),
-        .wren    (cycles_we),
-        .address (cycles_waddr),
-        .data    (cycles_wdata),
-        .rden    (1'b1),
-        .q       (cycles_dout)
-    );
-	 
-	 
     mac mac_inst (
         .clk   (clk),
         .reset (mac_reset),
@@ -221,6 +162,13 @@ module fsm (
 		 .d_out (sig_out_tanh)
 	);
 
+    // Ativação por RELU: Se for menor que 0 (bit de sinal sig_in[15] == 1), zera. Caso contrário, mantém o valor.
+    assign sig_out_relu = (sig_in[15] == 1'b1) ? 16'sd0 : sig_in;
+
+    assign sig_out = (ativacao == `SIGMOID) ? sig_out_sigmoid :
+                     (ativacao == `RELU)    ? sig_out_relu    :
+                                              sig_out_tanh;
+
     argmax argmax_inst (
         .clk   (clk),
         .reset (argmax_reset),
@@ -231,9 +179,7 @@ module fsm (
         .done  (argmax_done)
     );
 
-	 
-	assign sig_out = ativacao ? sig_out_sigmoid : sig_out_tanh;
-	
+	 	
 	always @(posedge clk) begin
 		 pixel_reg <= mac_pixel_raw;
 		 peso_reg  <= mac_peso_raw;
@@ -283,6 +229,7 @@ module fsm (
             state         <= IDLE;
             done          <= 0;
 			cycles        <= 0;
+			cycles_out    <= 0;
             n_cnt         <= 0;
             c_cnt         <= 0;
             layer2        <= 0;
@@ -311,8 +258,7 @@ module fsm (
             argmax_start  <= 0;
             argmax_reset  <= 0;
 
-            if (busy)
-                cycles <= cycles + 1;
+            if (busy) cycles <= cycles + 1;
 				
             case (state)
                 // IDLE
@@ -326,8 +272,9 @@ module fsm (
                     beta_raddr  <= 0;
 
                     if (start) begin
-                        state <= H_RESET;
-                        busy  <= 1;
+                        state  <= H_RESET;
+                        busy   <= 1;
+                        cycles <= 0;
                     end
                 end
 
@@ -510,11 +457,7 @@ module fsm (
                         pred <= pred_wire;
                         busy <= 0;
 								
-                        cycles_we    <= 1;     
-                        cycles_final <= cycles;
-                        cycles_waddr <= cycles_idx;
-                        cycles_idx   <= cycles_idx + 1;
-                        cycles_wdata <= cycles;
+                        cycles_out <= cycles;
                         
                         state <= IDLE;
                     end

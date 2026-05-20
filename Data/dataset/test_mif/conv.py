@@ -1,0 +1,82 @@
+import re
+import struct
+import sys
+
+def mif_to_bin_little_endian(mif_path, bin_path, word_bytes=2):
+    """
+    Converte um arquivo .mif contendo valores hexadecimais
+    para um arquivo binário little-endian.
+
+    Parameters
+    ----------
+    mif_path : str
+        Caminho do arquivo .mif
+    bin_path : str
+        Caminho do arquivo .bin de saída
+    word_bytes : int
+        Quantidade de bytes por palavra:
+            1 -> uint8
+            2 -> uint16
+            4 -> uint32
+    """
+
+    valores = []
+
+    with open(mif_path, "r") as f:
+        for linha in f:
+
+            linha = linha.strip()
+
+            if not linha:
+                continue
+
+            match = re.search(
+                r'^\s*\d+\s*:\s*([0-9A-Fa-f]+)\s*;',
+                linha
+            )
+
+            if match:
+
+                valor_hex = match.group(1)
+
+                valor = int(valor_hex, 16)
+
+                valores.append(valor)
+
+    with open(bin_path, "wb") as f:
+        for valor in valores:
+
+            if word_bytes == 1:
+                f.write(struct.pack("<B", valor))
+
+            elif word_bytes == 2:
+                f.write(struct.pack("<H", valor))
+
+            elif word_bytes == 4:
+                f.write(struct.pack("<I", valor))
+
+            else:
+                raise ValueError("word_bytes deve ser 1, 2 ou 4")
+
+    print(f"Convertidos {len(valores)} valores.")
+    print(f"Arquivo salvo em: {bin_path}")
+
+
+
+if __name__ == "__main__":
+
+    match len(sys.argv):
+        case 3:
+            mif_to_bin_little_endian(sys.argv[1], sys.argv[2])
+        case 4:
+            try:
+                bt = int(sys.argv[3])
+                mif_to_bin_little_endian(sys.argv[1], sys.argv[2], bt)
+            except Exception as e:
+                print(e)
+                # print("Erro: Argumento 3 precisa ser um valor numérico.")
+                # print(f"{sys.argv[3]=}")
+        case _:
+            print("Erro: entrada inválida.")
+            print(f"{sys.argv=}")
+    

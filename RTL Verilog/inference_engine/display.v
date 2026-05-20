@@ -64,7 +64,7 @@ module display (
         else if (busy)
             state <= ST_BUSY;
         else if (~busy & ~done)
-            state <= ST_OP;
+            state <= ST_IDLE;
     end
 
 
