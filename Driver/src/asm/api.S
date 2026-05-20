@@ -497,7 +497,7 @@ send_inst:
 @ void send_weight_addr(void* base, int addr)
 @ ============================================================================
 send_weight_addr:
-    PUSH {R4, LR}
+    PUSH {R4-R6, LR}
 
     MOV R2, #OP_PES_ADDR
     LSL R2, R2, #28         @ R2 = opcode << 28
@@ -509,7 +509,21 @@ send_weight_addr:
 
     STR R2, [R0, #INST_BASE]
 
-    BL loop_enable
+    MOV R4, #1
+    STR R4, [R0, #ENABLE_BASE]
+    
+    MOV R6, #100
+.delay_addr_1:
+    SUBS R6, R6, #1
+    BNE .delay_addr_1
+
+    MOV R4, #0
+    STR R4, [R0, #ENABLE_BASE]
+        
+    MOV R6, #100
+.delay_addr_2:
+    SUBS R6, R6, #1
+    BNE .delay_addr_2
 
     POP {R4, PC}
 
