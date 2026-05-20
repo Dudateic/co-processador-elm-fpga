@@ -55,10 +55,34 @@ int main()
                 // Coleta o status através da instrução dedicada do hardware
                 status = get_status(lw_virtual);
                 printf("\nStatus Bruto: 0x%08X\n", status);
-                // Ajustado conforme o empacotamento de bits do circuito elm_accel:
-                printf("  Done: %u\n", (status >> 11) & 1);
-                printf("  Busy: %u\n", (status >> 10) & 1);
-                printf("  Pred: %u\n", status & 0xF);
+                
+                // Extração dos bits conforme o Verilog atualizado
+                uint32_t ativacao = (status >> 10) & 0x3; // Bits [11:10]
+                uint32_t wait_w   = (status >> 9) & 1;    // Bit 9
+                uint32_t done     = (status >> 8) & 1;    // Bit 8
+                uint32_t busy     = (status >> 7) & 1;    // Bit 7
+                uint32_t pred     = status & 0xF;         // Bits [3:0]
+
+                printf("  Done: %u\n", done);
+                printf("  Busy: %u\n", busy);
+                printf("  Aguardando Peso (Wait_W): %u\n", wait_w);
+                printf("  Pred: %u\n", pred);
+                
+                // Descodifica o tipo de ativação
+                printf("  Ativação selecionada: ");
+                switch(ativacao) {
+                    case 0:
+                        printf("0 (Tangente Hiperbólica - Tanh)\n");
+                        break;
+                    case 1:
+                        printf("1 (Sigmoide)\n");
+                        break;
+                    case 2:
+                        printf("2 (ReLU)\n");
+                        break;
+                    default:
+                        printf("%u (Desconhecida/Inválida)\n", ativacao);
+                }
                 break;
 
             case 1:

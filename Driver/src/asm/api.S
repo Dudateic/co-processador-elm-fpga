@@ -537,13 +537,17 @@ loop_enable:
     MOV R4, #1
     STR R4, [R0, #ENABLE_BASE]
 
-.loop_inf:
+.loop_inf_sobe:
     LDR R5, [R0, #DONE_BASE]
-
     CMP R5, #0
-    BEQ .loop_inf
+    BEQ .loop_inf_sobe       @ 1. Espera FPGA concluir (DONE == 1)
 
     MOV R4, #0
     STR R4, [R0, #ENABLE_BASE]
+
+.loop_inf_desce:
+    LDR R5, [R0, #DONE_BASE]
+    CMP R5, #0
+    BNE .loop_inf_desce      @ 2. CRÍTICO: Espera FPGA limpar o estado (DONE == 0)
 
     POP {R4-R5, PC}
