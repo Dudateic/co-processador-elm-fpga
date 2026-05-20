@@ -83,14 +83,14 @@ hps_open:
 
 .err_open_devmem:
     MOV R0, #-1
-    POP {R4-R5, PC}
+    POP {R4-R5, R7, PC}
 
 @ ============================================================================
 @ int hps_close(void* lw_virtual)
 @ ============================================================================
 .type hps_close, %function
 hps_close:
-    PUSH {R1, R7, LR} 
+    PUSH {R7, LR} 
 
     CMP R0, #0
     BEQ .close_done       
@@ -100,7 +100,7 @@ hps_close:
     MOV R7, #SYS_MUNMAP
     SVC #0
 .close_done:
-    POP {R1, R7, PC}
+    POP {R7, PC}
 
 @ ============================================================================
 @ INT32 get_result(void* lw_virtual) -> Result
@@ -134,17 +134,17 @@ reset_cop:
 @ ============================================================================
 .type get_status, %function
 get_status:
-    PUSH {R4, LR}
+    PUSH {R4, R5, LR}
+    MOV R5, R0
 
     MOV R4, #OP_STATUS
     LSL R4, R4, #28
-
     STR R4, [R0, #INST_BASE]
 
+    MOV R0, R5
     BL loop_enable
 
     LDR R0, [R0, #OUT_BASE]
-
     POP {R4, PC}
 
 @ ============================================================================
@@ -152,18 +152,20 @@ get_status:
 @ ============================================================================
 .type start_inf, %function
 start_inf:
-    PUSH {R4, LR}
+    PUSH {R4, R5, LR}
+    MOV R5, R0
 
     MOV R4, #OP_START
     LSL R4, R4, #28
 
     STR R4, [R0, #INST_BASE]
 
+    MOV R0, R5
     BL loop_enable
 
     LDR R0, [R0, #OUT_BASE]
 
-    POP {R4, PC}
+    POP {R4, R5, PC}
 
 @ ============================================================================
 @ void set_activation(void* lw_virtual, int tipo_ativacao)
@@ -195,12 +197,13 @@ set_activation:
 .type get_cycles, %function
 get_cycles:
     PUSH {R6, LR}
+    MOV R5, R0
 
     MOV R6, #OP_CYCLES
     LSL R6, R6, #28
 
     STR R6, [R0, #INST_BASE]
-
+    MOV R0, R5
     BL loop_enable
 
     LDR R0, [R0, #OUT_BASE]
@@ -224,7 +227,7 @@ enviar_imagem:
     CMP R6, #0
     BLT .err_img_file
 
-    @ Lê 178x2 bytes para image_buffer
+    @ Lê 784 bytes para image_buffer
 
     LDR R1, =image_buffer
     MOV R2, #image_size
@@ -430,17 +433,19 @@ enviar_beta:
 @ Retorna: File Descriptor para o arquivo
 @ ============================================================================
 abrir_arquivo:
+    PUSH {R7, LR}
     MOV R7, #SYS_OPEN
     MOV R1, #READ_ONLY
     SVC #0
 
     CMP R0, #0
     BLT .err_file
-    BX LR
+    
+    POP {R7, PC}
 
 .err_file:
     MOV R0, #-1
-    BX LR
+    POP {R7, PC}
 
 @ ============================================================================
 @ int fechar_arquivo(void* FD)
@@ -448,15 +453,19 @@ abrir_arquivo:
 @ R0: File Descriptor para o arquivo
 @ ============================================================================
 fechar_arquivo:
+    PUSH {R7, LR}
+
     CMP R0, #0
     BLT .err_close
 
     MOV R7, #SYS_CLOSE
     SVC #0
-    BX LR
+    POP {R7, PC}
+
 .err_close:
     MOV R0, #-1
-    BX LR
+    POP {R7, PC}
+
 
 
 @ ============================================================================
@@ -473,7 +482,7 @@ send_inst:
     LSL R2, R2, #16
 
     ORR R5, R5, R2          @ R5 = R5 | (addr << 16)
-
+LR
     LDR R4, =0XFFFF
     AND R3, R3, R4
 

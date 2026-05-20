@@ -39,6 +39,8 @@
 #define OP_BETA         4
 #define OP_START        5
 #define OP_STATUS       6
+#define OP_ACTV         7
+#define OP_CYCLES       8
 
 //=== System Calls do Linux ARMv7
 #define READ_ONLY       0
