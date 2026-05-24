@@ -664,3 +664,9 @@ O presente projeto foi desenvolvido por Maria Eduarda Teixeira Costa, Taylon Lui
 
 - Linux Device Drivers, 3rd Edition – Corbet, Rubini, Kroah-Hartman
   https://lwn.net/Kernel/LDD3/
+
+### 11.1 Bibliotecas de Terceiros
+
+- **stb_image.h** — Sean Barrett (@nothings)
+  Biblioteca *single-file header* em C (Domínio Público / MIT License) utilizada no módulo `converter.c` para a decodificação de imagens PNG e conversão direta para o formato de pixels RAW em escala de cinza (8-bits). 
+  Repositório oficial: https://github.com/nothings/stb
