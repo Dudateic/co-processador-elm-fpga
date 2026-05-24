@@ -1,367 +1,419 @@
-# Marco 1 — Co-processador ELM em FPGA
+# Marco 2 — Integração HPS↔Linux via Driver (Assembly ARM)
 
-> **TEC 499 — MI Sistemas Digitais 2026.1 | UEFS**  
+> **TEC 499 — MI Sistemas Digitais 2026.1 | UEFS**
 
 ## Sumário
+
 01. [Visão Geral do Projeto](#1-visão-geral-do-projeto)
 02. [Levantamento de Requisitos](#2-levantamento-de-requisitos)
-03. [Fundamentação Teórica](#3-fundamentação-teórica)  
-04. [Arquitetura do Sistema](#3-arquitetura-do-sistema)
-05. [Especificação de Hardware e Software](#4-especificação-de-hardware-e-software)
-05. [Processo de Desenvolvimento](#12-processo-de-desenvolvimento)
-06. [Instalação e Configuração](#5-instalação-e-configuração)
-07. [Simulação e Testes](#6-simulação-e-testes)
-08. [Resultados e Uso de Recursos](#7-resultados-e-uso-de-recursos)
-09. [Equipe de Desenvolvimento](#9-e-quipe-de-desenvolvimento)
-10. [Referências](#17-referências)
+03. [Fundamentação Teórica](#3-fundamentação-teórica)
+04. [Arquitetura do Sistema](#4-arquitetura-do-sistema)
+05. [Especificação de Hardware e Software](#5-especificação-de-hardware-e-software)
+06. [Processo de Desenvolvimento](#6-processo-de-desenvolvimento)
+07. [Instalação e Configuração](#7-instalação-e-configuração)
+08. [Testes de Funcionamento](#8-testes-de-funcionamento)
+09. [Análise dos Resultados](#9-análise-dos-resultados)
+10. [Equipe de Desenvolvimento](#10-equipe-de-desenvolvimento)
+11. [Referências](#11-referências)
 
 
 ## 1. Visão Geral do Projeto
 
-O sistema desenvolvido consiste em uma solução de aceleração por hardware para a classificação de dígitos manuscritos, baseada na implementação de um co-processador em FPGA capaz de executar a inferência de uma rede neural do tipo Extreme Learning Machine (ELM). Esse problema envolve o processamento de imagens do conjunto MNIST, compostas por 784 pixels em escala de cinza, exigindo a realização de operações matemáticas intensivas como multiplicações e acumulações. Em abordagens tradicionais em software, essas operações podem introduzir alta latência e limitar o desempenho em sistemas embarcados. Dessa forma, a utilização de hardware dedicado permite explorar maior eficiência computacional.
+Este marco representa a integração entre o co-processador ELM implementado em FPGA no Marco 1 e o processador ARM (HPS) da plataforma DE1-SoC. O objetivo é estabelecer uma interface funcional e estável entre o sistema operacional Linux, executado no HPS, e o núcleo acelerador na FPGA, utilizando I/O mapeado em memória (MMIO) por meio da Lightweight HPS-to-FPGA Bridge.
+
+O resultado é um driver em Assembly ARM que expõe uma API de alto nível para a aplicação em C: inicialização do mapeamento de memória, carregamento dos parâmetros da rede neural (pesos, bias, beta), envio da imagem de entrada, disparo e monitoramento da inferência, além de leitura do resultado e das métricas de desempenho.
 
 
 ## 2. Levantamento de Requisitos
 
-- Implementar inferência da rede ELM utilizando pesos fornecidos previamente.
-- A arquitetura deve ser sequencial.
-
-- Deve haver:
-  - FSM de controle
-  - Datapath MAC (Multiply-Accumulate)
-  - Função de ativação aproximada (LUT ou piecewise linear)
-  - Módulo argmax
-  - Memórias para armazenamento de dados
-  - Banco de registradores
- - Valores devem ser representados em ponto fixo (fix-point) no formato Q4.12
- - Pesos podem residir em ROM inicializada (MIF/HEX) ou blocos RAM/ROM inferidos
- - Deve haver uma estratégia clara para armazenamento e acesso a W_in, b e β
+- Integrar o IP elm_accel ao HPS da DE1-SoC via Lightweight HPS-to-FPGA Bridge.
+- Implementar um driver em Assembly ARM (userspace via _/dev/mem_) que permita à aplicação:
+  - Inicializar o hardware
+  - Enviar os pesos
+  - Enviar o bias
+  - Enviar os pesos de saída
+  - Iniciar a inferência
+  - Aguardar finalização (_polling_ ou interrupção)
+  - Ler o resultado da predição
+  - Ler o contador de ciclos e outras métricas
+- As rotinas críticas de acesso ao hardware devem ser integralmente implementadas em Assembly ARM.
+- O driver deve expor uma API estável definida, linkada com a aplicação em C.
+- Classificar uma imagem conhecida repetidamente sem falhas.
 
 
 ## 3. Fundamentação Teórica
 
-São apresentados os conceitos teóricos e arquiteturais que fundamentam o desenvolvimento do classificador de dígitos proposto, incluindo  o modelo de rede neural utilizado, a estratégia de aceleração em hardware e os mecanismos de comunicação do sistema embarcado.
+Esta seção apresenta os conceitos que sustentam a integração entre o Linux e o co-processador em FPGA, incluindo a interface HPS↔FPGA, o modelo MMIO, a programação em Assembly ARMv7 e o protocolo de handshake de hardware.
 
+## 
 
-### 3.1 Redes Neurais e o Modelo Extreme Learning Machine (ELM)
+### 3.1 Arquitetura da DE1-SoC: Sistema Heterogêneo HPS + FPGA
 
-O núcleo inteligente do sistema baseia-se na Extreme Learning Machine (ELM), uma arquitetura de rede neural do tipo Single-Hidden Layer Feedforward Neural Network (SLFN). Diferentemente dos modelos tradicionais treinados por backpropagation (como o Gradiente Descendente), a ELM possui a característica de ter os pesos da camada oculta atribuídos aleatoriamente e mantidos fixos, enquanto apenas os pesos da camada de saída são calculados analiticamente.
+A plataforma DE1-SoC integra em um único chip dois domínios de processamento:
 
-Para o escopo deste projeto, a fase de treinamento é abstraída, sendo o sistema embarcado responsável exclusivamente pela fase de inferência (classificação), utilizando os parâmetros W_in, b e β previamente fornecidos.
+- **HPS (Hard Processor System):** Processador ARM Cortex-A9 dual-core executando Linux embarcado.
+- **FPGA (Field Programmable Gate Array):** Matriz de portas programáveis onde o co-processador elm_accel foi implementado.
 
-#### 3.1.1 Camada de Entrada
----
+A comunicação entre eles é feita por bridges AXI. O projeto utiliza a **Lightweight HPS-to-FPGA Bridge (LWHPS2FPGA)**, mapeada no espaço de endereçamento físico do HPS a partir do endereço **0xFF200000**, com janela de 4 KB. Essa bridge é adequada para acesso a registradores de controle de baixo volume, como os utilizados pela ISA do co-processador.
 
-A camada de entrada recebe um vetor x correspondente à imagem de entrada no formato 28×28 pixels em escala de cinza, totalizando 784 valores. Cada pixel é convertido para um vetor unidimensional. Nesta etapa não há processamento matemático complexo, apenas a preparação dos dados para a rede neural.
+![Figura 1 – Diagrama da arquitetura HPS-FPGA da DE1-SoC](Assets/figuras/hpsfpga.jpg)
+**Figura 1 – Diagrama da arquitetura HPS-FPGA da DE1-SoC**
 
-#### 3.1.2 Camada Oculta
----
+##
 
-A camada oculta é responsável pela extração de características não lineares a partir da entrada. O processamento ocorre por meio de uma combinação linear entre entrada e pesos W_in, somada ao viés b, seguida de uma função de ativação não linear:
+### 3.2 I/O Mapeado em Memória (MMIO) e /dev/mem
 
-```math
-h = activation(W_in · x + b)
-```
+No modelo MMIO, endereços de memória são atribuídos a registradores de periféricos. O processador ARM interage com o hardware por meio das instruções LDR/STR, sem necessidade de instruções especiais de I/O.
 
-Nesta etapa são realizadas operações intensivas de multiplicação e acumulação (MAC), sendo o principal ponto de aceleração em hardware no co-processador.
+Em ambiente Linux, o acesso a endereços físicos de hardware é feito via _/dev/mem_:
 
+1. O driver abre _/dev/mem_ com a flag combinada 0x101002 (O_RDWR | O_SYNC). O O_SYNC desabilita o cache L1/L2 do ARM e força as escritas diretas ao barramento, sem essa flag, dados podem ficar retidos no cache e jamais chegar à FPGA.
+2. Chama mmap2 (syscall 192 no ARMv7) para associar o intervalo de endereços físicos da bridge a um ponteiro virtual no processo. O offset passado ao mmap2 deve ser o endereço físico deslocado 12 bits para a direita (LW_BRIDGE_BASE = 0xFF200), conforme a API da syscall.
+3. As funções do driver recebem esse ponteiro como parâmetro (lw_virtual) e realizam acessos com STR/LDR nos offsets dos registradores.
+4. Ao encerrar, munmap (syscall 91) libera o mapeamento.
 
-#### 3.1.3 Camada de Saída
----
+##
 
-A camada de saída possui 10 neurônios, correspondentes às classes de 0 a 9. O vetor de saída y é calculado por:
+### 3.3 Arquitetura ARM Cortex-A9 e Programação em Assembly ARMv7
 
-```math
- y = β · h
-```
+O processador ARM Cortex-A9 implementa a arquitetura ARMv7-A. Os aspectos relevantes para o driver são:
 
-Cada elemento do vetor representa a ativação associada a uma classe específica.
+- 16 registradores de propósito geral (R0–R15). R13 (SP), R14 (LR) e R15 (PC) têm funções especiais.
+- Por convenção, os parâmetros são passados em R0–R3, valor de retorno em R0, registradores R4–R11 são callee-saved (o chamado deve preservá-los com PUSH/POP).
+- O número da syscall é colocado em R7 e a chamada é disparada com SVC #0.
+- Os parâmetros seguem a convenção AAPCS.
 
+As syscalls utilizadas no driver são:
 
-#### 3.1.4 Cômputo da Predição
----
+| Syscall     | Número | Uso no driver                          |
+|-------------|--------|----------------------------------------|
+| SYS_READ  | 3      | Ler arquivos de imagem e parâmetros    |
+| SYS_OPEN  | 5      | Abrir _/dev/mem_ e arquivos de dados   |
+| SYS_CLOSE | 6      | Fechar file descriptors                |
+| SYS_MUNMAP| 91     | Desfazer o mapeamento da bridge        |
+| SYS_MMAP2 | 192    | Mapear a bridge no espaço virtual      |
 
-A classificação final é obtida através da operação argmax:
+##
 
-```math
-pred = argmax(y)
-```
+### 3.4 Mapa de Registradores
 
-O índice retornado corresponde ao dígito predito pelo sistema.
+O co-processador expõe os seguintes registradores, acessíveis como offsets do ponteiro lw_virtual:
 
+| Offset   | Constante      | Tipo | Descrição                                                           |
+|----------|----------------|------|---------------------------------------------------------------------|
+| 0x20   | INST_BASE    | W    | Registrador de instrução: recebe a palavra de 32 bits codificada    |
+| 0x30   | OUT_BASE     | R    | Registrador de saída: resultado da instrução executada              |
+| 0x40   | ENABLE_BASE  | W    | Sinal de handshake: pulso que dispara a execução                    |
+| 0x50   | BUSY_BASE    | R    | Indica que o co-processador está ocupado                            |
+| 0x60   | RESET_BASE   | W    | Reset síncrono (escreve 1 para resetar, 0 para liberar)             |
+| 0x70   | DONE_BASE    | R    | Sinal de conclusão da instrução atual (usado no polling)            |
 
-### 3.2 Visão Geral do Fluxo de Inferência
+##
 
-O fluxo completo do sistema ELM, desde a entrada da imagem até a decisão final da classe, é apresentado na figura 1.
+### 3.5 Codificação de Instruções
 
-![Figura 1 – Diagrama geral da inferência na ELM](Assets/figuras/diagrama_geral.png)
-**Figura 1 – Diagrama geral da inferência na ELM**
-
-### 3.3 Aritmética de Ponto Fixo (Q4.12)
-
-Em arquiteturas FPGA, o uso de ponto flutuante é custoso em termos de área e desempenho. Por isso, o sistema utiliza representação em ponto fixo no formato Q4.12.
-
-O formato Q4.12 é definido como:
-
-* 1 bit de sinal
-* 3 bits para parte inteira
-* 12 bits para parte fracionária
-
-Essa representação permite que operações de soma e multiplicação sejam realizadas com lógica inteira, reduzindo o uso de recursos da FPGA e aumentando a eficiência do datapath.
-
-
-### 3.4 Organização e Uso de Memória no Co-processador
-
-A eficiência de arquiteturas baseadas em redes neurais em hardware depende diretamente da forma como os dados são armazenados e acessados. No caso da Extreme Learning Machine (ELM), uma parcela significativa do custo computacional está associada não apenas às operações aritméticas, mas também ao volume de acessos à memória necessários para leitura dos vetores de entrada e dos parâmetros do modelo.
-
-No co-processador desenvolvido, a hierarquia de memória foi organizada utilizando principalmente memórias internas do tipo RAM (Block RAM - BRAM) da FPGA, permitindo armazenamento local e acesso de baixa latência.
-
-A imagem de entrada (784 pixels) é armazenada em uma RAM interna dedicada, permitindo acesso sequencial controlado pela FSM de execução. Essa abordagem reduz a dependência de acessos externos e garante maior previsibilidade temporal durante a inferência.
-
-Os parâmetros da rede neural, como os pesos da camada oculta (W_in) e os pesos da camada de saída (β), são armazenados em memória interna do tipo RAM. O vetor de bias (b) também é armazenado em estrutura de memória semelhante, sendo acessado de forma sincronizada com o datapath MAC.
-
-Além disso, o sistema utiliza registradores de controle para armazenar estados da execução, como início do processamento, status da inferência e resultado final da classificação. O vetor de saída (y) é armazenado temporariamente em registradores até a etapa de decisão por argmax.
-
-Essa organização baseada em RAM interna reduz gargalos de acesso à memória externa e permite que o processamento seja realizado de forma sequencial e determinística, garantindo maior eficiência no uso dos recursos da FPGA e melhor integração com o datapath do co-processador.
-
-## 4. Arquitetura do Sistema (Descrição da Solução em Hardware)
-
-A arquitetura do co-processador ELM foi desenvolvida de forma modular, separando as funções de controle, armazenamento de dados, via de dados (*datapath*) e interface com o utilizador. Essa divisão permite maior escalabilidade e organização do fluxo de execução da inferência em hardware.
-
-
-### 4.1 Módulo Principal (Co-processador) e Interface
-
-O módulo de topo, denominado `co_processador`, atua como interface entre os sinais externos (interruptores e botões) e o núcleo de processamento interno. Este bloco é responsável por coordenar a execução do sistema e distribuir os dados para os submódulos apropriados.
-
-As principais funções deste módulo incluem:
-
-- Interpretação dos comandos provenientes das chaves (`SW`) e botões (`KEY`), gerando sinais de controlo para a máquina de estados finita (FSM);
-- Descoberta e encaminhamento de *opcodes* (OP_IMG, OP_PES, OP_BIA, OP_BET, OP_INFER, OP_STATUS) para seleção do tipo de operação e destino dos dados;
-- Interface com o módulo de visualização (`display`), responsável pela apresentação do estado do sistema (IDLE, BUSY, DONE) e do resultado da inferência em displays de 7 segmentos.
-
-
-### 4.2 Memórias Internas (BRAM)
-
-Para garantir acesso determinístico e de baixa latência, o sistema utiliza memórias internas do tipo Block RAM (BRAM), inferidas através da megafunção `altsyncram` da plataforma FPGA.
-
-A organização da memória é estruturada da seguinte forma:
-
-- **Memória de imagem:** armazena 784 posições de 8 bits, correspondentes aos pixels da imagem de entrada (MNIST);
-- **Memórias de parâmetros:** armazenam os parâmetros da rede neural, organizados em blocos dedicados:
-  - `W_in`: 100.352 pesos da camada oculta, representando as conexões entre entrada e neurónios ocultos;
-  - `β`: 1.280 pesos da camada de saída, responsáveis pelo mapeamento das ativações ocultas para as classes finais;
-  - `b`: 128 valores de bias associados aos neurónios da camada oculta.
-
-Essa organização em blocos de memória permite que os dados sejam fornecidos de forma sequencial ao datapath, sincronizados com a FSM de controle.
-
-
-### 4.3 Unidade de Controle: Máquina de Estados Finita (FSM)
-
-O fluxo de execução do co-processador é coordenado por uma máquina de estados finita (FSM), responsável por orquestrar todas as etapas da inferência.
-
-O processamento é dividido em duas fases principais:
-
-- **Fase 1 – Camada Oculta:**  
-  A FSM realiza a leitura dos pixels da imagem e dos pesos `W_in`, e somando com o bias alimentando o bloco MAC. O resultado da operação é aplicado à função de ativação e armazenado no vetor interno de neurónios ocultos.
-
-- **Fase 2 – Camada de Saída:**  
-  Após o processamento da camada oculta, a FSM altera a fonte de dados para o vetor `h` e os pesos `β`, realizando o cálculo das ativações das 10 classes de saída.
-
-Essa abordagem sequencial permite reutilização eficiente dos recursos de hardware.
-
-### 4.4 Via de Dados (Datapath)
-
-O datapath é responsável pela execução das operações matemáticas do sistema, sendo composto por três blocos principais.
-
-#### 4.4.1 Bloco MAC (Multiply-Accumulate)
-
-O bloco MAC realiza as operações fundamentais de soma de produtos em ponto fixo, constituindo o núcleo computacional do co-processador.
-
-#### 4.4.2 Função de Ativação
-
-As funções de ativação (sigmoide e tangente hiperbólica) são implementadas através de aproximações lineares por partes (*piecewise linear approximation*), reduzindo significativamente o custo computacional.
-
-O domínio da função é particionado em intervalos, permitindo que operações complexas sejam substituídas por combinações de deslocamentos e somas.
-
-A seleção da função de ativação é controlada pela FSM, permitindo alternância dinâmica entre diferentes modos de operação.
-
-#### 4.4.3 Bloco Argmax
-
-O bloco argmax é responsável pela etapa final de decisão da rede neural.
-
-Durante o processamento da camada de saída, cada valor de ativação é comparado sequencialmente com o maior valor armazenado. Caso um novo valor seja superior, o sistema atualiza o máximo e registra o índice correspondente.
-
-Ao final do processamento das 10 classes, o sistema ativa a flag de conclusão (`done`) e disponibiliza o valor final da predição como saída do co-processador.
-
-#### 4.4.4 Unidade de Controle — Máquina de Estados Finita (FSM)
-
-A unidade de controle do co-processador é implementada por uma Máquina de Estados Finita (FSM), responsável por coordenar todas as etapas do fluxo de inferência. Sua função principal é orquestrar a leitura de dados, execução do datapath e armazenamento dos resultados, garantindo sincronização entre memória e processamento.
-
-O funcionamento da FSM é dividido em duas fases principais: processamento da camada oculta e processamento da camada de saída, seguidas da etapa de finalização.
-
-
-#### 4.4.5 Camada Oculta (128 neurônios)
-
-Nesta fase, a FSM executa o processamento sequencial de cada neurônio da camada oculta. Para cada neurônio, são realizadas operações de leitura de dados, cálculo no MAC e aplicação da função de ativação, com armazenamento intermediário do resultado.
+#### 3.5.1 Codificação da instrução de 32 bits:
 
 ```
-H_RESET → H_FETCH → H_MAC → H_BIAS → H_ACT → H_STORE → H_NEXT → (loop)
+ 31     28 27      16 15           0
+ ┌────────┬──────────┬──────────────┐
+ │ opcode │   addr   │     data     │
+ │  [4b]  │  [12b]   │    [16b]     │
+ └────────┴──────────┴──────────────┘
 ```
 
-Esse ciclo é repetido 128 vezes, uma vez para cada neurônio da camada oculta, garantindo o processamento completo do vetor de entrada.
+Para OP_PES_ADDR, os bits [16:0] carregam integralmente o endereço de 17 bits do peso.
 
----
+#### 3.5.2 Tabela de opcodes (bits [31:28]):
 
-#### 4.4.6 Camada de Saída (10 classes)
+| Opcode | Constante     | Descrição                                                                            |
+|--------|---------------|--------------------------------------------------------------------------------------|
+| 0    | OP_IMG      | Armazena pixel: addr=posição [0–783], data=valor 8-bit do pixel                 |
+| 1    | OP_PES_ADDR | 1ª fase do peso: [16:0] = endereço de 17 bits (0–100351)                          |
+| 2    | OP_PES_DATA | 2ª fase do peso: data[15:0] = valor Q4.12                                         |
+| 3    | OP_BIAS     | Armazena bias: addr=posição [0–127], data=valor Q4.12                           |
+| 4    | OP_BETA     | Armazena peso de saída β: addr=posição [0–1279], data=valor Q4.12               |
+| 5    | OP_START    | Inicia a inferência. Resultado fica em OUT_BASE após DONE                         |
+| 6    | OP_STATUS   | Consulta estado da FSM. OUT_BASE retorna estado + predição                        |
+| 7    | OP_ACTV     | Define função de ativação: data[1:0] = 00/11→Tanh, 01→Sigmoid, 10→ReLU           |
+| 8    | OP_CYCLES   | Lê contador de ciclos da última inferência em OUT_BASE                             | 
 
-Após a conclusão da camada oculta, a FSM passa para o processamento da camada de saída. Nesta etapa, os valores armazenados da camada anterior são utilizados para calcular a ativação final de cada classe.
+
+#### 3.5.3 Decodificação do registrador OUT_BASE após OP_STATUS:
 
 ```
-O_RESET → O_FETCH → O_MAC → O_ACC → O_STORE → O_NEXT → (loop)
+ Bit 11–10 │ Bit 9    │ Bit 8  │ Bit 7  │ Bits 3–0
+ ──────────┼──────────┼────────┼────────┼──────────
+  ativacao │ wait_w   │  done  │  busy  │   pred
+  [2 bits] │ [1 bit]  │[1 bit] │[1 bit] │ [4 bits]
 ```
 
-Esse processo é repetido 10 vezes, correspondendo às classes de saída (0 a 9).
+| Campo      | Bits     | Descrição                                              |
+|------------|----------|--------------------------------------------------------|
+| ativacao | [11:10]  | Função de ativação ativa: 00=Tanh, 01=Sigmoid, 10=ReLU |
+| wait_w   | [9]      | FSM aguardando OP_PES_DATA (após OP_PES_ADDR)      |
+| done     | [8]      | Última instrução concluída                             |
+| busy     | [7]      | Co-processador em execução                             |
+| pred     | [3:0]    | Resultado da última inferência (dígito 0–9)            |
 
----
+##
 
-#### 4.4.7 Etapa de Decisão e Finalização
+### 3.5 Protocolo de Handshake (ENABLE/DONE)
 
-Após o cálculo das saídas, a FSM aciona o bloco de decisão (argmax), responsável por identificar a maior ativação entre as classes.
+Toda comunicação com o co-processador segue um protocolo de handshake de quatro fases, implementado na rotina loop_enable:
 
 ```
-ARGMAX → DONE_ST → IDLE
+1. Driver escreve instrução em INST_BASE
+2. Driver sobe ENABLE_BASE → 1      (FPGA detecta a borda de subida: enable_pulse)
+3. Driver faz polling: aguarda DONE_BASE == 1   (FPGA concluiu)
+4. Driver desce ENABLE_BASE → 0
+5. Driver faz polling: aguarda DONE_BASE == 0   (FPGA limpou o estado)
 ```
 
-Nesta etapa, o sistema:
+Na etapa 5, sem aguardar DONE=0, a próxima instrução pode ser interpretada como já concluída pelo hardware antes mesmo de ser executada, corrompendo o fluxo.
 
-* percorre o vetor de saída `y`
-* identifica o maior valor
-* armazena o índice correspondente como predição final
-* ativa o sinal `done`, indicando o término da execução
+A instrução OP_PES_ADDR é uma exceção: por ser a primeira fase de uma operação de dois ciclos, a FPGA não gera DONE=1 isoladamente para ela (fica em ST_WAIT_PES aguardando OP_PES_DATA). Por isso, send_weight_addr utiliza um delay fixo de 100 iterações em vez do handshake completo.
 
-### 4.5 ISA — Conjunto de Instruções 
 
-A arquitetura do co-processador define um conjunto reduzido de instruções responsável pela transferência de dados, configuração da memória interna e controle da execução da inferência. Cada instrução é codificada em 32 bits, utilizando os três bits mais significativos para identificação da operação.
+## 4. Arquitetura do Sistema
 
-| Instrução      | Opcode `[31:29]` | Palavras | Descrição                                                                 |
-|----------------|------------------|----------|---------------------------------------------------------------------------|
-| STORE_IMG      | 000              | 2        | Escreve um pixel na memória de imagem                                     |
-| STORE_WEIGHTS  | 001              | 2        | Escreve um peso da camada oculta na memória correspondente               |
-| STORE_BIAS     | 010              | 2        | Escreve um valor no vetor de bias                                         |
-| STORE_BETA     | 011              | 2        | Escreve um peso da camada de saída                                       |
-| START          | 100              | 1        | Inicia o processo de inferência                                           |
-| STATUS         | 101              | 1        | Consulta o estado interno da FSM e o resultado da predição               |
----
+### 4.1 Visão Geral
 
-### Resposta da instrução STATUS
+```
+┌────────────────────────────────────────┐
+│         main.c — Menu interativo       │  C (usuário)
+├──────────────┬─────────────────────────┤
+│  converter.h │   buffers.h / hps_0.h   │  Suporte em C
+├──────────────┴─────────────────────────┤
+│           api.S — Driver ARM           │  Assembly ARMv7
+├────────────────────┬───────────────────┤
+│   Linux Kernel     │  /dev/mem (mmap2) │
+├────────────────────┴───────────────────┤
+│   LW HPS-to-FPGA Bridge  0xFF200000    │  Hardware
+├────────────────────────────────────────┤
+│    Co-processador elm_accel (FPGA)     │  elm_accel.v
+└────────────────────────────────────────┘
+```
 
-| status[1:0] | Significado | pred[3:0]    |
-| ----------- | ----------- | ------------ |
-| 00          | BUSY        | 0000         |
-| 01          | DONE        | Dígito (0–9) |
-| 10          | ERROR       | 1111         |
+O sistema é composto por três camadas de software:
 
----
+- **api.S** — Driver em Assembly ARM, que realiza todas as operações de baixo nível: mapeamento de memória via _/dev/mem_, codificação das instruções de 32 bits e protocolo de handshake com o hardware.
+- **api.h / hps_0.h** — Cabeçalhos que definem a API pública do driver e as constantes de hardware (endereços, opcodes, tamanhos).
+- **main.c** — Aplicação interativa em C com menu de terminal, que permite ao usuário carregar parâmetros, enviar imagens e disparar inferências no co-processador.
 
-### 4.6 Banco de Registradores e Interface de Controle
+##
 
-> **Observação de implementação:** O banco de registradores descrito nesta seção não foi implementado de forma estritamente fiel a uma arquitetura clássica de CPU, sendo adaptado às necessidades específicas do fluxo de inferência do co-processador.
+### 4.2 Co-processador elm_accel.v
 
-O sistema não utiliza um banco de registradores tradicional como em CPUs convencionais. Em vez disso, a arquitetura é baseada em registradores de controle e buffers internos distribuídos entre os módulos da FSM e do datapath.
+A interface do co-processador com o HPS é:
 
-Esses registradores são responsáveis por armazenar estados intermediários e coordenar a execução do fluxo de inferência.
+| Sinal       | Direção | Largura | Descrição                                   |
+|-------------|---------|---------|---------------------------------------------|
+| clk         | Input   | 1       | Clock do sistema (50 MHz)                   |
+| rst         | Input   | 1       | Reset síncrono ativo alto                   |
+| instruction | Input   | 32      | Palavra de instrução codificada             |
+| enable      | Input   | 1       | Sinal de handshake                          |
+| result      | Output  | 32      | Resultado da instrução executada            |
+| busy        | Output  | 1       | Co-processador em execução                  |
+| done        | Output  | 1       | Instrução atual concluída                   |
+| error       | Output  | 1       | Erro durante execução                       |
 
-### 4.7 Registradores de Controle
+A FSM do elm_accel possui oito estados: ST_IDLE, ST_FETCH, ST_DECODE, ST_EXECUTE, ST_DONE, ST_WAIT_W, ST_WAIT_PES e ST_INFER.
+- O campo opcode é decodificado de instruction[31:28]
+- O campo endereço de instruction[27:16] (ou [16:0] para pesos)
+- O dado a ser enviado de instruction[15:0].
 
-Os principais registradores utilizados no sistema são:
-* **reg_instr**: registra a instrução atualmente decodificada pela interface ISA (opcode e campos associados)
-* **reg_start**: indica o início da inferência (acionado pela instrução START)
-* **reg_done**: sinaliza a conclusão do processamento
-* **reg_status**: armazena o estado atual da FSM (BUSY, DONE ou ERROR)
-* **reg_pred**: armazena o resultado final da classificação (0–9)
+##
 
+### 4.3 Driver em Assembly ARM (api.S)
+
+O driver é implementado em api.S, com buffers estáticos declarados na seção .bss:
+
+| Buffer         | Tamanho       | Conteúdo                          |
+|----------------|---------------|-----------------------------------|
+| image_buffer   | 784 bytes     | Pixels da imagem (uint8)          |
+| bias_buffer    | 256 bytes     | 128 valores de bias (uint16 Q4.12)|
+| beta_buffer    | 2.560 bytes   | 1.280 pesos β (uint16 Q4.12)      |
+| pesos_buffer   | 200.704 bytes | 100.352 pesos W_in (uint16 Q4.12) |
+
+#### Rotinas públicas
+
+| Função            | Protótipo C                               | Descrição                                                                    |
+|-------------------|-------------------------------------------|------------------------------------------------------------------------------|
+| hps_open          | void* hps_open(void)                      | Abre a ponte de comunicação com a FPGA e devolve um ponteiro para acessá-la. Retorna -1 se falhar. |
+| hps_close         | void hps_close(void* lw_virtual)        | Fecha a ponte e libera os recursos de memória usados.                         |
+| reset_cop         | void reset_cop(void* lw_virtual)        | Reinicia o co-processador, limpando qualquer estado anterior.                   |
+| get_result        | int32_t get_result(void* lw_virtual)    | Lê e retorna o último valor presente no registrador de saída do co-processador.                          |
+| get_status        | int32_t get_status(void* lw_virtual)    | Pergunta ao co-processador qual é o seu estado atual e retorna a resposta.                        |
+| start_inf         | int32_t start_inf(void* lw_virtual)     | Manda o co-processador executar a classificação e aguarda o resultado. Retorna o dígito previsto.            |
+| set_activation    | void set_activation(void* lw_virtual, int tipo) | Define qual função de ativação será usada na próxima inferência (0=Tanh, 1=Sigmoid, 2=ReLU).                    |
+| get_cycles        | uint32_t get_cycles(void* lw_virtual)   | Retorna quantos ciclos de clock a última inferência levou para ser concluída.                |
+| enviar_imagem     | int enviar_imagem(void* lw_virtual)     | Lê o arquivo img.bin e envia os 784 pixels da imagem para o co-processador. Retorna 0 ou -1. |
+| enviar_pesos      | int enviar_pesos(void* lw_virtual)      | Lê o arquivo W_in_q.bin e envia os 100.352 pesos da camada oculta. Retorna 0 ou -1. |
+| enviar_bias       | int enviar_bias(void* lw_virtual)       | Lê o arquivo b_q.bin e envia os 128 valores de bias. Retorna 0 ou -1. |
+| enviar_beta       | int enviar_beta(void* lw_virtual)       | Lê o arquivo beta_q.bin e envia os 1.280 pesos da camada de saída. Retorna 0 ou -1. |
+
+#### Rotinas internas
+
+| Função            | Descrição                                                                                            |
+|-------------------|------------------------------------------------------------------------------------------------------|
+| send_inst         | Monta a instrução de 32 bits com opcode, endereço e dado, envia ao co-processador e aguarda a confirmação de recebimento.                   |
+| send_weight_addr  | Envia apenas o endereço de um peso, sem aguardar confirmação completa, pois o hardware fica esperando o valor logo em seguida.   |
+| loop_enable       | Gerencia o protocolo de comunicação com o hardware: sinaliza que há uma instrução, espera o hardware confirmar, e só então libera para a próxima.                    |
+| abrir_arquivo     | Abre um arquivo em modo leitura e retorna seu identificador. Retorna -1 se o arquivo não existir.                                              |
+| fechar_arquivo    | Fecha um arquivo aberto. Não faz nada se o identificador for inválido.                                                     |
+
+#### Fluxo completo de uma inferência
+
+```
+lw = hps_open()         → abre /dev/mem, mmap2 da bridge
+reset_cop(lw)           → garante estado inicial limpo no co-processador
+
+── Inicialização (executada uma única vez) ──
+enviar_pesos(lw)        → lê W_in_q.bin → 100.352 × (OP_PES_ADDR + OP_PES_DATA)
+enviar_bias(lw)         → lê b_q.bin    → 128 × OP_BIAS
+enviar_beta(lw)         → lê beta_q.bin → 1.280 × OP_BETA
+
+── Por imagem (repetido para cada classificação) ──
+enviar_imagem(lw)       → lê img.bin    → 784 × OP_IMG
+result = start_inf(lw)  → OP_START + handshake → lê OUT_BASE
+cycles = get_cycles(lw) → OP_CYCLES    → lê OUT_BASE
+
+hps_close(lw)           → munmap
+```
+
+### 4.4 API Pública e Erros (api.h)
+
+| Função         | Retorno em sucesso | Retorno em erro                |
+|----------------|--------------------|--------------------------------|
+| hps_open       | Ponteiro válido    | -1 — falha em open/mmap2       |
+| enviar_imagem  | 0                  | -1 — falha ao abrir img.bin    |
+| enviar_pesos   | 0                  | -1 — falha ao abrir W_in_q.bin |
+| enviar_bias    | 0                  | -1 — falha ao abrir b_q.bin    |
+| enviar_beta    | 0                  | -1 — falha ao abrir beta_q.bin |
+
+**Tipos de ativação para set_activation (bits [1:0]):**
+
+| Valor        | Função                      |
+|--------------|-----------------------------|
+| 0b00 ou 0b11 | Tangente hiperbólica (Tanh) |
+| 0b01         | Sigmoid                     |
+| 0b10         | ReLU                        |
+
+### 4.5 Aplicação em C (main.c)
+
+A aplicação é um programa interativo de terminal com menu de 13 opções, que demonstra e testa todas as funcionalidades do driver. O fluxo de uso otimizado utiliza a Carga Automática para preparar a FPGA, seguida dos testes de inferência.
+
+**Descrição completa das opções do menu:**
+
+| Opção | Função          | Descrição                                                                                      |
+|-------|-----------------|-----------------------------------------------------------------------------------------------|
+| [0] | Status          | Consulta o estado atual (Done, Busy, Wait_W) e exibe o dígito previsto e a ativação configurada. |
+| [1] | Enviar imagem   | Pede um arquivo PNG, converte para RAW (8-bits) e envia para a memória da FPGA. |
+| [2-4] | Carga Manual  | Permite enviar individualmente os arquivos .mif de Bias, Pesos e Beta. |
+| [5] | Inferência      | Dispara a classificação da imagem carregada e exibe o dígito previsto e os ciclos de clock. |
+| [6] | Inferência ×100 | Teste de estresse: repete a inferência 100 vezes seguidas para validar a estabilidade do hardware. |
+| [7] | Benchmark: Acurácia | Itera pelas subpastas `Data/dataset/test/0` a `9`, envia imagens em lote, compara com o label real e calcula a % de acerto do hardware. |
+| [8] | Benchmark: Throughput | Avalia o processamento em lote para calcular a latência média (microssegundos) e o FPS (Frames Per Second) da FPGA. |
+| [9] | Ativação        | Permite configurar a função de ativação matemática (0=Tanh, 1=Sigmoid, 2=ReLU). |
+| [10] | Reset Hardware | Envia um pulso de reset síncrono para limpar a máquina de estados. |
+| [11] | Auto-Load      | Detecta a ativação atual e carrega automaticamente a rede completa (Pesos, Bias e Beta) das pastas de dados correspondentes. |
+| [12] | Sair           | Fecha o mapeamento `/dev/mem` e encerra o programa de forma limpa. |
+
+**Descrição completa das opções do menu:**
+
+| Opção | Função          | Descrição                                                                                      |
+|-------|-----------------|-----------------------------------------------------------------------------------------------|
+| [0] | Status          | Consulta o estado atual do co-processador e exibe se ele está ocupado, se terminou, qual dígito foi previsto e qual função de ativação está ativa. |
+| [1] | Enviar imagem   | Pede o nome de um arquivo PNG, converte a imagem para formato bruto de pixels e a envia para o co-processador. |
+| [2] | Enviar bias     | Pede o arquivo de bias no formato .mif, carrega os valores e os envia para o co-processador. |
+| [3] | Enviar weights  | Pede o arquivo de pesos no formato .mif, carrega os valores e os envia para o co-processador. |
+| [4] | Enviar beta     | Pede o arquivo de pesos de saída no formato .mif, carrega os valores e os envia para o co-processador. |
+| [5] | Inferência      | Manda o co-processador classificar a imagem já carregada e exibe o dígito previsto e o tempo gasto em ciclos de clock.      |
+| [6] | Inferência ×10  | Repete a classificação 10 vezes seguidas e exibe o resultado e os ciclos de cada rodada, além da média geral.     |
+| [7] | Ativação        | Permite escolher a função de ativação que será usada na inferência: Tanh, Sigmoid ou ReLU.                      |
+| [8] | Sair            | Fecha a comunicação com a FPGA e encerra o programa corretamente.                                        |
 
 ## 5. Especificação de Hardware e Software
 
 ### 5.1 Hardware Utilizado
 
-| Componente            | Especificação                                               |
-|----------------------|-------------------------------------------------------------|
-| Plataforma           | Terasic DE1-SoC                                             |
-| FPGA                 | Intel Cyclone V SoC — 5CSEMA5F31C6N                         |
-| Processador (HPS)    | ARM Cortex-A9 dual-core @ 800 MHz                           |
-| Memória FPGA         | 4.065.280 bits (M10K — 397 blocos)                          |
-| Elementos Lógicos     | 32.070 ALMs                                                |
-| DSP Blocks           | 87                                                          |
-| Clock FPGA           | 50 MHz                                                      |
-| Interconexão HPS–FPGA | Lightweight AXI Bridge (base 0xFF200000)                   |
-
-O sistema foi implementado na plataforma DE1-SoC, que integra um processador ARM e uma FPGA no mesmo dispositivo, permitindo o desenvolvimento de uma arquitetura heterogênea.
-
-A comunicação entre software (HPS) e hardware (FPGA) é realizada por meio de memória mapeada (MMIO), viabilizando a integração entre os dois domínios de processamento.
-
-![DE1-SoC](Assets/figuras/de1_soc.png)
-
-**Figura 2 – Placa de desenvolvimento DE1-SoC utilizada no projeto**
-
----
+| Componente          | Especificação                                                |
+|--------------------|--------------------------------------------------------------|
+| Plataforma         | Terasic DE1-SoC                                              |
+| FPGA               | Intel Cyclone V SoC — 5CSEMA5F31C6N                          |
+| Processador (HPS)  | ARM Cortex-A9 dual-core @ 800 MHz                            |
+| Bridge HPS↔FPGA    | Lightweight AXI Bridge — base física *0xFF200000*, span 4 KB |
+| Memória DDR3       | 1 GB                                                         |
+| Clock FPGA         | 50 MHz                                                       |
+| SO                 | Linux embarcado (distribuição de referência LEDS/UEFS)       |
 
 ### 5.2 Software Utilizado
 
-| Software            | Finalidade                                                |
-|--------------------|-----------------------------------------------------------|
-| Intel Quartus Prime | Síntese e implementação do circuito em FPGA              |
-| ModelSim / Questa   | Simulação funcional do sistema                            |
-| Icarus Verilog      | Simulação RTL e validação de módulos                     |
-| Python              | Geração de dados e conversão de imagens                  |
-| Verilog HDL         | Implementação do co-processador                          |
+| Software / Ferramenta         | Versão                     | Finalidade                                             |
+|-------------------------------|----------------------------|--------------------------------------------------------|
+| Intel Quartus Prime Lite      | 18.1                       | Síntese, P&R e geração do bitstream                    |
+| Intel Platform Designer       | (incluso no Quartus)       | Integração HPS↔FPGA e mapeamento da bridge             |
+| ARM GCC Cross Compiler        | arm-linux-gnueabihf-gcc  | Compilação cruzada da aplicação C e link-edição        |
+| GNU Assembler (GAS)           | arm-linux-gnueabihf-as   | Montagem do api.S                                    |
+| GNU Make                      | 4.x                        | Automação do build                                     |
+| Python                        | 3.10+                      | Scripts de conversão de dados e automação de testes    |
+| SSH / SCP                     | —                          | Transferência de binários e dados para a placa         |
+| Git                           | 2.x                        | Controle de versão                                     |
+
 
 ## 6. Processo de Desenvolvimento
 
-O processo de desenvolvimento foi conduzido de forma progressiva, permitindo a implementação e validação de cada etapa do sistema de maneira estruturada. Também foram realizadas pesquisas e análises para compreender as etapas do desenvolvimento, possibilitando identificar os elementos essenciais para a implementação do sistema e apoiar a compreensão de cada fase do processo.
+### 6.1 Integração do IP no Platform Designer
 
-### 6.1 Concepção e Definição de Arquitetura
+O módulo do co-processador elm_accel foi adicionado ao Platform Designer como periférico Avalon-MM Slave, conectado à Lightweight HPS-to-FPGA Bridge. Os registradores de PIO foram configurados com os offsets 0x20–0x70 dentro da janela de 4 KB. Após recompilação, o arquivo hps_0.h com as constantes de endereço foi feito e incluído no driver.
 
-Nesta etapa foi realizada a análise do problema e definida a arquitetura geral do sistema, com foco na organização dos módulos de processamento e no fluxo de dados necessário para a execução da inferência.
+### 6.2 Desenvolvimento do Driver em Assembly
 
-Foram estabelecidos os requisitos principais do projeto, incluindo o uso da plataforma DE1-SoC e a estrutura de comunicação entre os blocos de hardware responsáveis pelo processamento e controle.
+O api.S foi desenvolvido de forma incremental:
 
-Também foi definida a estratégia de armazenamento dos parâmetros do sistema em memória interna da FPGA, utilizando arquivos de inicialização para garantir a disponibilidade dos dados durante a execução.
+**Etapa 1 — Mapeamento MMIO:** Implementação de hps_open e hps_close, validando que a syscall mmap2 retornava um ponteiro válido e que pulsos em RESET_BASE geravam o comportamento esperado no hardware.
 
-### 6.2 Modelagem em Verilog (RTL)
+**Etapa 2 — Protocolo de handshake:** Implementação de loop_enable e send_inst. A fase crítica foi identificar que omitir a espera por DONE=0 causava instabilidade em transmissões sequenciais. A adição do segundo loop de polling resolveu definitivamente o problema.
 
-Nesta fase, o sistema foi implementado em Verilog no nível RTL, seguindo uma organização baseada em módulos independentes para cada unidade funcional do co-processador.
+**Etapa 3 — Envio de parâmetros:** Implementação de enviar_pesos, enviar_bias e enviar_beta. O envio de pesos exige protocolo de dois passos (OP_PES_ADDR + OP_PES_DATA), o que motivou a criação de send_weight_addr com delay fixo, pois a FPGA permanece em ST_WAIT_PES e não sinaliza DONE=1 para o endereço isoladamente.
 
-Foram desenvolvidos os principais blocos do sistema:
+**Etapa 4 — Inferência e métricas:** Implementação de start_inf, get_status e get_cycles, completando a API.
 
-- **FSM:** responsável pelo controle do fluxo de execução;
-- **MAC:** unidade de multiplicação e acumulação;
-- **Funções de ativação:** implementadas com aproximações para reduzir a complexidade em hardware;
-- **Argmax:** responsável por determinar a classe final a partir das saídas;
-- **Memórias:** estruturas de armazenamento geradas pelo Quartus para dados e parâmetros;
-- **ISA:** conjunto de instruções utilizado para controle das operações do co-processador.
+### 6.3 Link-edição dos Módulos
 
-### 6.3 Simulação e Validação
+O api.S é montado pelo GNU Assembler gerando api.o, que é linkado com a aplicação C pelo ARM GCC. O Makefile automatiza todo o processo de compilação cruzada:
 
-Antes de ser implementado na FPGA, o sistema foi testado por simulação usando ModelSim e testbenches em Verilog.
+```makefile
+CC      = arm-linux-gnueabihf-gcc
+AS      = arm-linux-gnueabihf-as
+CFLAGS  = -O1 -Wall -march=armv7-a
+ASFLAGS = -march=armv7-a
 
-Foram usados vetores de teste ($K$ casos) para comparar os resultados com um modelo de referência (*golden model*).
+all: app
 
-Essa etapa serviu para encontrar e corrigir erros de lógica e de representação em ponto fixo.
+app: main.o api.o
+  $(CC) $(CFLAGS) -o app main.o api.o
 
-### 6.4 Síntese e Implementação na FPGA
+main.o: main.c api.h hps_0.h converter.h buffers.h
+  $(CC) $(CFLAGS) -c main.c
 
-Após a etapa de simulação, o código foi sintetizado no Intel Quartus Prime para a FPGA Cyclone V da plataforma DE1-SoC.
+api.o: api.S hps_0.h
+  $(AS) $(ASFLAGS) -o api.o api.S
+```
 
-Durante o processo de síntese, foi verificado o uso de recursos do dispositivo e a correta geração das memórias a partir dos arquivos de inicialização (MIF).
+### 6.4 Conversão dos Dados de Entrada
 
-Em seguida, o sistema foi implementado na placa FPGA para preparação dos testes em hardware.
+A aplicação C utiliza as funções declaradas em converter.h para pré-processar as entradas:
 
-## 7. Instalação e Configuração do Projeto
+- png_para_raw: Converte imagem PNG 28×28 para arquivo .bin de pixels brutos (img.bin), utilizado pelo enviar_imagem.
+- save_bin_u16: Serializa buffers de uint16 para arquivos binários (W_in_q.bin, b_q.bin, beta_q.bin).
+- load_mif_image / load_mif_u16: Carregam dados em formato MIF para fins de validação.
 
-A organização do projeto foi estruturada de forma modular, separando claramente os elementos de hardware, validação, dados e suporte à automação. Essa divisão permite um fluxo de desenvolvimento mais controlado, facilitando tanto a simulação quanto a síntese e implementação do sistema em FPGA.
+Os parâmetros da rede em Q4.12 são convertidos uma vez no host e transferidos para a placa. A imagem é convertida em tempo de execução.
 
----
+
+## 7. Instalação e Configuração
 
 ### 7.1 Estrutura do Repositório
 
@@ -383,6 +435,21 @@ co-processador-elm-fpga/
 │       ├── bias.qip             # Vetor de bias
 │       ├── beta.qip             # Parâmetros da camada de saída
 │       └── imagem.qip           # Memória de entrada
+├── Driver/
+│   ├── makefile
+│   ├───Activations/             # Dados das funções de ativação para o driver
+│   │   ├───Relu/
+│   │   ├───Sigm/
+│   │   └───Tanh/
+│   ├── bin/                     # Arquivos binários para o driver
+│   ├── IMG/                     # Seleção de imagens para testes
+│   ├── include/                 # Arquivos de cabeçalho e códigos necessários para conversão de imagens
+│   └── src/
+│       ├── buffers.c
+│       ├── converter.c          # Funções para converter dados em binário
+│       ├── main.c
+│       └── asm/
+│           └─── api.S              # API em assembly
 │
 ├── testbench/
 │   ├── tb_k_vetores/            # Conjunto de testes funcionais
@@ -401,9 +468,19 @@ co-processador-elm-fpga/
 │   └── conv_img_mif.py          # Conversão de imagens para formato de memória
 │
 └── README.md
-
 ```
-### 7.2 Configuração do Ambiente
+
+### 7.2 Pré-requisitos
+
+**No computador host:**
+- Intel Quartus Prime Lite 18.1 com suporte a Cyclone V
+- Toolchain ARM: arm-linux-gnueabihf-gcc e arm-linux-gnueabihf-as
+
+**Na placa DE1-SoC:**
+- Linux embarcado inicializado e acessível via SSH
+- Acesso a /dev/mem (execução como root)
+
+### 7.3 Configuração do Ambiente
 
 1. Clonar o repositório do projeto:
 ```bash
@@ -417,127 +494,173 @@ cd co-processador-elm-fpga
 3. Compilar o projeto:
   Executar a compilação completa (Analysis & Synthesis → Fitter → Assembler)
 
-## 8. Simulação e Testes
+Peço desculpa! Como coloquei blocos de código uns dentro dos outros na resposta anterior, o botão de copiar do chat pode ter-se baralhado.
 
-A validação do sistema foi realizada em múltiplos níveis de abstração, abrangendo desde testes unitários de módulos até a simulação completa do pipeline de inferência. O objetivo foi garantir a corretude funcional do hardware e sua consistência em relação ao modelo de referência (golden model).
+Aqui tem a **Secção 7.4** num bloco de Markdown limpo e isolado. Pode clicar em "Copiar código" no canto superior direito do bloco abaixo e colar diretamente no seu ficheiro `README.md`:
 
-A estratégia de verificação utilizou testbenches em Verilog, arquivos de estímulo no formato `.hex`, captura de formas de onda e comparação numérica entre saídas do hardware e do modelo em software.
+### 7.4 Organização do Diretório de Execução (Ambiente de Runtime na Placa)
+
+Para o correto funcionamento do software no Linux embarcado da **DE1-SoC**, o ambiente de execução deve espelhar os caminhos relativos definidos no código-fonte. O executável principal deve estar na raiz do diretório de trabalho, acompanhado das pastas de dados (`Activations` e `IMG`) e da pasta de trabalho (`bin`), que o programa utilizará para salvar os arquivos binários intermediários gerados em tempo de execução.
+
+A estrutura hierárquica na placa deve ser estritamente a seguinte:
+
+```text
+diretorio_de_execucao/
+│
+├── acelerador_elm             # Executável principal compilado
+│
+├── bin/                       # Pasta de trabalho (arquivos .bin gerados pelo software)
+│
+├── Activations/
+│   ├── Relu/                  # Contém: b_q.mif, W_in_q.mif e beta_q.mif
+│   ├── Sigm/                  # Contém: b_q.mif, W_in_q.mif e beta_q.mif
+│   └── Tanh/                  # Contém: b_q.mif, W_in_q.mif e beta_q.mif
+│
+└── IMG/
+    ├── 0/                     # Arquivos .png de teste para o dígito 0
+    ├── 1/                     # Arquivos .png de teste para o dígito 1
+    └── ...                    # (subpastas até o dígito 9)
+
+```
+
+### Instruções de Configuração no Terminal da Placa:
+
+1. **Preparação do Diretório de Trabalho:**
+Na placa, crie as pastas base. É crucial que a pasta `bin/` exista para que o conversor em C não falhe ao tentar escrever os dados brutos:
+```bash
+      mkdir -p bin Activations IMG
+```
+2. **Transferência dos Arquivos:**
+* Coloque o executável `acelerador_elm` na **raiz** do diretório.
+* Transfira as matrizes matemáticas geradas (arquivos `.mif`) para dentro de `Activations/`, respeitando a divisão por subpastas (`Relu`, `Sigm`, `Tanh`).
+* Aloque as imagens de teste nas subpastas numéricas correspondentes de `0` a `9` dentro de `IMG/`.
+
+
+3. **Execução:**
+Como o binário se encontra na raiz e procura os recursos através de caminhos relativos (ex: `./IMG/`, `./bin/img.bin`), o programa deve ser executado diretamente a partir deste diretório base:
+```bash
+    ./acelerador_elm
+
+```
+## 8. Testes de Funcionamento
 
 ### 8.1 Estratégia de Validação
 
-A validação foi estruturada em três níveis complementares:
+A validação foi estruturada em três níveis:
 
-- **Validação unitária:** verificação isolada de módulos (MAC, ativação e argmax)
-- **Validação por estágio:** análise das camadas da rede separadamente
-- **Validação sistêmica:** execução completa do pipeline via FSM
+- **Nível 1 — Registradores MMIO:** Verificação de que o mapeamento da bridge está correto e que reset e leitura de OUT_BASE respondem como esperado.
+- **Nível 2 — Protocolo End-to-End:** Execução do fluxo completo (parâmetros → imagem → START → resultado) para dígitos conhecidos.
+- **Nível 3 — Estabilidade:** Execução repetida (N ≥ 100) da mesma imagem para verificar ausência de falhas no handshake.
 
+### 8.2 Teste de Registradores MMIO
 
-### 8.2 Metodologia de Simulação
+Verificação manual via opção [0] do menu após a inicialização:
 
-Os testes foram implementados com técnicas padrão de verificação em HDL:
+| Operação        | Ação                    | Resultado esperado                           |
+|-----------------|-------------------------|----------------------------------------------|
+| hps_open()    | mmap2 da bridge       | Ponteiro ≠ -1 (mensagem de erro não aparece) |
+| reset_cop()   | Pulso em RESET_BASE   | Co-processador volta ao ST_IDLE            |
+| Opção [0]     | OP_STATUS             | Done=0, Busy=0, Wait_W=0, Pred=0 (estado inicial limpo) |
 
-- Carregamento de vetores via `$readmemh`
-- Execução sequencial sincronizada por clock
-- Captura de sinais internos em waveform (`.vcd`)
-- Exportação de resultados em arquivos `.hex`
-- Comparação automática com o golden model
+### 8.3 Teste de Estabilidade (Opção [6])
 
+A opção [6] executa 10 inferências consecutivas e reporta individualmente cada predição e contagem de ciclos, além da média:
 
+```
+Executando bateria de benchmark (x10 inferências)...
+  Inferencia 1 OK | Pred: 7 | XXXXX ciclos
+  Inferencia 2 OK | Pred: 7 | XXXXX ciclos
+  ...
+  Inferencia 10 OK | Pred: 7 | XXXXX ciclos
+>> Média de tempo do hardware: XXXXX ciclos de clock
+```
 
-### 8.3 Resumo dos Testes Realizados
+Predição constante e ausência de falhas (erros == 0) confirmam a estabilidade do protocolo de handshake.
 
-| Módulo / Etapa     | Entrada de Teste              | Saída Gerada      | Validação            | Objetivo |
-|--------------------|------------------------------|-------------------|----------------------|----------|
-| MAC                | 784 pixels + pesos           | `camada1.hex`     | Golden model        | Soma acumulada e bias |
-| Ativação           | Saída da camada oculta       | `ativacao.hex`    | Comparação numérica  | Aproximação da função |
-| Argmax             | Vetor de 10 classes          | Índice da classe  | Verificação lógica   | Seleção do maior valor |
-| Camada Oculta      | MAC + ativação               | 128 ativações     | Modelo de referência | Consistência intermediária |
-| Camada de Saída    | Vetor oculto ativado         | 10 classes        | Golden model         | Classificação final |
-| Sistema Completo   | FSM completa                 | `saida_final.hex` | Comparação global    | Validação end-to-end |
-| K Vetores de Teste | Dataset externo              | Predição final    | Software             | Acurácia geral |
+### 8.4 Teste de Troca de Ativação (Opção [7])
+
+Verificação da instrução OP_ACTV: selecionar cada uma das três funções de ativação e confirmar via opção [0] (campo ativacao nos bits [11:10] do status) que a FPGA registrou a mudança corretamente.
+
+| Ativação selecionada | Valor enviado | Bits [11:10] no STATUS |
+|----------------------|---------------|------------------------|
+| Tanh                 | 0             | 00                     |
+| Sigmoid              | 1             | 01                     |
+| ReLU                 | 2             | 10                     |
+
 
 ## 9. Análise dos Resultados
 
-A análise dos resultados tem como objetivo avaliar o comportamento do sistema em comparação com o modelo de referência, considerando tanto a precisão global quanto as fontes de erro.
+### 9.1 Integração HPS↔FPGA
 
-### 9.1 Desempenho Geral
+A integração via Platform Designer foi concluída com sucesso. O elm_accel foi corretamente mapeado na Lightweight HPS-to-FPGA Bridge e os acessos MMIO via STR/LDR no Assembly produziram as respostas esperadas do co-processador.
 
-| Métrica              | Resultado |
-|---------------------|----------|
-| Acurácia global     | Alta     |
-| Estabilidade da FSM | Confirmada |
-| Consistência do MAC | Elevada  |
-| Sensibilidade numérica | Moderada |
-| Erros críticos      | Baixos   |
+### 9.2 Protocolo de Handshake
 
-### 9.2 Validação com K Vetores
+A implementação correta do loop_enable foi o ponto mais crítico do marco. Testes realizados sem a segunda fase de polling (espera por DONE=0) apresentaram falhas intermitentes durante o envio sequencial dos 100.352 pesos. O problema ocorria porque o hardware não havia limpado o sinal DONE antes da próxima instrução ser interpretada, corrompendo o estado da FSM. A adição do loop de descida eliminou completamente as falhas.
 
-O sistema foi avaliado utilizando um conjunto de K vetores de teste fornecidos externamente, permitindo análise estatística da performance.
+### 9.3 Flag O_SYNC no Acesso ao /dev/mem
 
-Os resultados indicam que:
+A abertura de _/dev/mem_ com O_SYNC (composta em *0x101002*) mostrou-se indispensável. Sem ela, o Linux otimiza escritas usando o cache L1/L2 do Cortex-A9, fazendo com que os dados nunca cheguem efetivamente à FPGA. Com O_SYNC, cada STR é propagado diretamente ao barramento AXI.
 
-- A maior parte das amostras foi corretamente classificada
-- Erros ocorreram principalmente em casos com baixa margem entre classes
-- O comportamento geral permanece consistente com o modelo de referência
+### 9.4 Protocolo de Dois Passos para Pesos
 
-### 9.3 Análise das Divergências
+O envio de cada peso exige OP_PES_ADDR seguido de OP_PES_DATA. A send_weight_addr não usa o handshake completo porque a FPGA permanece em ST_WAIT_PES aguardando o OP_PES_DATA — ela não sinaliza DONE=1 para a fase de endereço isoladamente. O delay fixo de 100 iterações garante tempo suficiente para o hardware registrar o endereço antes da chegada do dado.
 
-As diferenças observadas entre o hardware e o modelo de referência seguem padrões bem definidos:
+### 9.5 Desempenho Observado
 
-- Ambiguidade entre classes com valores de ativação próximos
-- Acúmulo de erro devido à representação em ponto fixo (Q-format)
-- Aproximações lineares nas funções de ativação
-- Saturação do MAC em casos extremos
+| Métrica                          | Resultado                |
+|----------------------------------|--------------------------|
+| Ciclos por inferência            | aproximadamente 103.600  |
+| Taxa de acerto (teste individual)| 70%-80%                  |
+| Falhas no teste de estabilidade  | 0 / 100 iterações        |
 
-### 9.4 Recursos Utilizados
-| Recurso                 | Utilizado | Total     | %   |
-| ----------------------- | --------- | --------- | --- |
-| Lógica (ALMs)           | 2.069     | 32.070    | 6%  |
-| Registradores           | 2.636     | —         | —   |
-| Memória (bits usados)   | 1.634.454 | 4.065.280 | 40% |
-| Memória (bits alocados) | 2.088.960 | 4.065.280 | 51% |
-| Blocos M10K             | 204       | 397       | 51% |
-| DSPs                    | 1         | 87        | 1%  |
-| Pinos I/O               | 56        | 457       | 12% |
-| Clock global            | 1         | 16        | 6%  |
+### 9.6 Recursos de Hardware (Pós-integração)
 
+| Recurso       | Marco 1 | Marco 2 (com bridge) | Total disponível |
+|---------------|---------|----------------------|------------------|
+| ALMs          | 2.069   | ~2.300               | 32.070           |
+| Registradores | 2.636   | ~2.900               | —                |
+| Blocos M10K   | 204     | 204                  | 397              |
+| DSPs          | 1       | 1                    | 87               |
+| Pinos I/O     | 56      | 56                   | 457              |
 
+### 9.7 Conclusão da Análise
 
-### 9.5 Conclusão da Análise
+O Marco 2 demonstrou com sucesso a integração completa entre o co-processador ELM em FPGA e o sistema operacional Linux via driver em Assembly ARM. O protocolo de handshake ENABLE/DONE mostrou-se determinístico e estável, e a API exposta em api.h fornece a interface necessária para a aplicação C do Marco 3 consumir o acelerador de forma transparente.
 
-Os resultados demonstram que, apesar das limitações inerentes à implementação em hardware, o sistema apresenta comportamento estável e coerente, validando a arquitetura implementada.
 
 ## 10. Equipe de Desenvolvimento
 
 O presente projeto foi desenvolvido por Maria Eduarda Teixeira Costa, Taylon Luis do Nascimento Cerqueira e Yasmim de Paula Oliveira.
 
+
 ## 11. Referências
 
-- LEDS – Laboratório de Eletrônica Digital e Sistemas (UEFS)  
+- LEDS – Laboratório de Eletrônica Digital e Sistemas (UEFS)
   https://sites.google.com/uefs.br/ltec3-leds
 
-- FPGA Academy – Boards and Learning Resources  
+- FPGA Academy – Boards and Learning Resources
   https://fpgacademy.org/boards.html
 
-- CHEN, Guang-Bin et al. Extreme Learning Machine: Algorithm, Theory and Applications  
+- Intel — Cyclone V SoC: HPS Technical Reference Manual
+  https://www.intel.com/content/www/us/en/programmable/hps/cyclone-v/hps.html
+
+- Intel — DE1-SoC User Manual (Lightweight HPS-to-FPGA Bridge)
+  https://fpgacademy.org/Downloads/Intel_DE1-SoC_User_Manual.pdf
+
+- ARM — Architecture Reference Manual ARMv7-A and ARMv7-R Edition
+  https://developer.arm.com/documentation/ddi0406/latest/
+
+- ARM — Procedure Call Standard for the ARM Architecture (AAPCS)
+  https://developer.arm.com/documentation/ihi0042/latest/
+
+- CHEN, Guang-Bin et al. Extreme Learning Machine: Algorithm, Theory and Applications
   https://www.researchgate.net/publication/257512921_Extreme_learning_machine_algorithm_theory_and_applications
 
-- Accelerating Extreme Learning Machine on FPGA Hardware Implementation of Given Rotation - QRD  
+- Accelerating Extreme Learning Machine on FPGA Hardware Implementation of Given Rotation - QRD
   https://publisher.uthm.edu.my/ojs/index.php/ijie/article/view/4431
 
-- Máquina de Aprendizado Extremo (ELM) – Computação Inteligente  
-  https://computacaointeligente.com.br/algoritmos/maquina-de-aprendizado-extremo/
+- Digital Design and Computer Architecture – Harris & Harris
 
-- Intel FPGA Documentation – Cyclone V SoC Handbook  
-  https://www.intel.com/content/www/us/en/docs/programmable/683472/current/cyclone-v-device-overview.html
-
-- Quartus Prime Handbook – Intel FPGA  
-  https://www.intel.com/content/www/us/en/docs/programmable/683472/current/overview.html
-
-- Altera / Intel FPGA Memory Blocks (M10K RAMs) Documentation  
-  https://www.intel.com/content/www/us/en/docs/programmable/683472/current/memory-blocks.html
-
-- Digital Design and Computer Architecture – Harris & Harris (referência clássica de arquitetura digital)
-
-- FPGA-Based Neural Network Implementations: A Survey (artigos gerais sobre aceleração em hardware)
-  https://doi.org/10.1016/j.neucom.2019.03.081
+- Linux Device Drivers, 3rd Edition – Corbet, Rubini, Kroah-Hartman
+  https://lwn.net/Kernel/LDD3/

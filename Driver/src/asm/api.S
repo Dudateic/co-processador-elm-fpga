@@ -111,20 +111,31 @@ get_result:
     BX LR
 
 @ ============================================================================
-@ void reset_cop(void* lw_virtual)
+@ void reset_cop(void* base)
 @ ============================================================================
 .type reset_cop, %function
 reset_cop:
-    MOV R1, #1
-    STR R1, [R0, #RESET_BASE]
+    PUSH {R4, R5, LR}
 
-    NOP
-    NOP
-    
-    MOV R1, #0
-    STR R1, [R0, #RESET_BASE]
+    MOV R4, #1
+    STR R4, [R0, #RESET_BASE]   @ 1. Levanta o sinal de Reset
 
-    BX LR
+    @ Atraso de Software (~1000 iterações garantem dezenas de ciclos na FPGA)
+    LDR R5, =1000
+.delay_reset_1:
+    SUBS R5, R5, #1
+    BNE .delay_reset_1
+
+    MOV R4, #0
+    STR R4, [R0, #RESET_BASE]   @ 2. Baixa o sinal de Reset
+
+    @ Atraso de Software secundário (Garante estabilização antes da próxima instrução)
+    LDR R5, =1000
+.delay_reset_2:
+    SUBS R5, R5, #1
+    BNE .delay_reset_2
+
+    POP {R4, R5, PC}
 
 
 @ ============================================================================
@@ -525,7 +536,7 @@ send_weight_addr:
     SUBS R6, R6, #1
     BNE .delay_addr_2
 
-    POP {R4, PC}
+    POP {R4-R6, PC}
 
 @ ============================================================================
 @ void loop_enable(void* lw_virtual)

@@ -68,9 +68,9 @@
 #define N_pesos         100352
 
 //=== Caminho dos arquivos padrão para api.
-#define image_file  "img.bin"
-#define bias_file   "b_q.bin"
-#define beta_file   "beta_q.bin"
-#define pesos_file  "W_in_q.bin"
+#define image_file  "bin/img.bin"
+#define bias_file   "bin/b_q.bin"
+#define beta_file   "bin/beta_q.bin"
+#define pesos_file  "bin/W_in_q.bin"
 
 #endif

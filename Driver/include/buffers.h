@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 
-// BUFFERS
 extern uint8_t  buffer_image[784];
 extern uint16_t buffer_bias[128];
 extern uint16_t buffer_beta[1280];
