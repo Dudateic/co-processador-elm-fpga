@@ -1,0 +1,10 @@
+Metrica,Valor
+Total Imagens Processadas,10000
+Total Erros Hardware,0
+Acuracia Global (%),78.51
+Throughput (img/ciclo),0.000010
+Latencia Media (Ciclos),103682.00
+Latencia Minima (Ciclos),103682
+Latencia Maxima (Ciclos),103682
+Desvio Padrao (Ciclos),0.00
+Total de Ciclos,1014632052
