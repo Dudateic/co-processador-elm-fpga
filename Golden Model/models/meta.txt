@@ -1,0 +1,8 @@
+D=784
+H=128
+C=10
+activation=tanh
+lambda_ridge=0.001
+seed=123
+q_frac=12
+norm=x/255.0
